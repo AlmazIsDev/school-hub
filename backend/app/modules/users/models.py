@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from beanie import Document
+from pydantic import Field
 from pymongo import IndexModel
 
 
@@ -20,7 +21,7 @@ class User(Document):
     class_id: str | None = None
     vk_id: int | None = None
     password_temp: bool = True
-    created_at: datetime = datetime.now(timezone.utc)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     class Settings:
         name = "users"

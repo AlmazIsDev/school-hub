@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Дев-старт: postgres+redis в compose, затем бэк и фронт одновременно.
+# Дев-старт: mongo+redis в compose, затем бэк и фронт одновременно.
 # Остановка по Ctrl+C гасит всё.
 set -e
 cd "$(dirname "$0")"
 
-docker compose up -d postgres redis
+docker compose up -d mongo redis
 
 cleanup() {
   kill 0 2>/dev/null

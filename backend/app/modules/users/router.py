@@ -1,6 +1,7 @@
 import secrets
 
 import jwt
+from pymongo.errors import DuplicateKeyError
 from fastapi import APIRouter, Depends, HTTPException
 from ...core import redis as core_redis
 from ...core.auth import verify_password, make_tokens, decode_token, hash_password
@@ -50,7 +51,11 @@ async def create_user(body: schemas.UserCreateIn, user: dict = Depends(require_r
         raise HTTPException(422, "Роль не в списке")
     if await service.by_login(body.login):
         raise HTTPException(409, "Логин занят")
-    _, temp = await service.create_user(**body.model_dump())
+    try:
+        _, temp = await service.create_user(**body.model_dump())
+    except DuplicateKeyError:
+        # mongomock индексы не эмулирует, реальный Mongo отсекает гонку
+        raise HTTPException(409, "Логин занят")
     return {"ok": True, "temp_password": temp}
 
 @router.get("/users")
