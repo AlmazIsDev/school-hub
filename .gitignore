@@ -1,5 +1,5 @@
 *de.md
 docs/*/*/2*.md
-.*.env
+.env*
 __pycache__/
 *.egg-info
