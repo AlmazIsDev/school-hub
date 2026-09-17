@@ -19,5 +19,6 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(16))  # student|teacher|admin
     class_id: Mapped[int | None] = mapped_column(ForeignKey("school_classes.id"))
     vk_id: Mapped[int | None] = mapped_column(unique=True)
+    password_temp: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     school_class: Mapped["SchoolClass | None"] = relationship(back_populates="users")

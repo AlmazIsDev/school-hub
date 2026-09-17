@@ -16,6 +16,9 @@ def create_app() -> FastAPI:
             extra={"duration_ms": round((time.perf_counter() - t) * 1000, 1)})
         return response
 
+    from .modules.users.router import router as users_router
+    app.include_router(users_router)
+
     @app.get("/healthz")
     async def healthz():
         return {"ok": True}
