@@ -21,11 +21,14 @@ async def login(body: schemas.LoginIn, db: AsyncSession = Depends(get_db)):
 async def refresh(body: schemas.RefreshIn, db: AsyncSession = Depends(get_db)):
     try:
         p = decode_token(body.refresh)
-    except jwt.InvalidTokenError:
+        if p["type"] != "refresh":
+            raise HTTPException(401, "Нужен refresh-токен")
+        user_id = int(p["sub"])
+    except HTTPException:
+        raise
+    except (jwt.InvalidTokenError, KeyError, TypeError, ValueError):
         raise HTTPException(401, "Токен невалиден")
-    if p["type"] != "refresh":
-        raise HTTPException(401, "Нужен refresh-токен")
-    user = await db.get(User, int(p["sub"]))
+    user = await db.get(User, user_id)
     if not user:
         raise HTTPException(401, "Пользователь не найден")
     return {**make_tokens(user.id, user.role), "must_change_password": user.password_temp}

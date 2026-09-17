@@ -31,3 +31,14 @@ async def test_login_wrong_password(client, db):
         await s.commit()
     r = await client.post("/api/auth/login", json={"login": "s2", "password": "nope"})
     assert r.status_code == 401
+
+async def test_refresh_invalid_tokens(client, db):
+    from app.modules.users.service import create_user
+    async with db() as s:
+        _, tmp = create_user(s, login="s3", full_name="У", role="student")
+        await s.commit()
+    r = await client.post("/api/auth/login", json={"login": "s3", "password": tmp})
+    access = r.json()["access"]
+    for bad in ("garbage", access):
+        r = await client.post("/api/auth/refresh", json={"refresh": bad})
+        assert r.status_code == 401
