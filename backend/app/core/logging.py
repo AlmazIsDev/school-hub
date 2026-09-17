@@ -1,20 +1,22 @@
-import json, logging, time, uuid
+import json, logging, uuid
 from contextvars import ContextVar
 
 request_id: ContextVar[str] = ContextVar("request_id", default="-")
 
+_STANDARD_ATTRS = set(vars(logging.LogRecord("", 0, "", 0, "", (), None))) | {"message", "asctime"}
+
 class JsonFormatter(logging.Formatter):
     def format(self, record):
-        return json.dumps({
+        data = {
             "level": record.levelname, "logger": record.name,
             "msg": record.getMessage(), "request_id": request_id.get(),
-        }, ensure_ascii=False)
+        }
+        # extra-поля (user_id, duration_ms, ...) мержим в JSON как отдельные ключи
+        data.update({k: v for k, v in record.__dict__.items() if k not in _STANDARD_ATTRS})
+        return json.dumps(data, ensure_ascii=False, default=str)
 
 def setup_logging():
     h = logging.StreamHandler()
     h.setFormatter(JsonFormatter())
     logging.root.handlers = [h]
     logging.root.level = logging.INFO
-
-def log_request(user_id, duration_ms):
-    logging.getLogger("api").info("request", extra={"user_id": user_id})

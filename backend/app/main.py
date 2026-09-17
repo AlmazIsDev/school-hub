@@ -12,8 +12,8 @@ def create_app() -> FastAPI:
         t = time.perf_counter()
         response = await call_next(request)
         logging.getLogger("api").info(
-            "%s %s -> %s in %.1fms", request.method, request.url.path,
-            response.status_code, (time.perf_counter() - t) * 1000)
+            "%s %s -> %s", request.method, request.url.path, response.status_code,
+            extra={"duration_ms": round((time.perf_counter() - t) * 1000, 1)})
         return response
 
     @app.get("/healthz")
