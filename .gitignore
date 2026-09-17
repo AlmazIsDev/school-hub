@@ -1,3 +1,4 @@
 *de.md
 docs/*/*/2*.md
-.*
+.*.env
+__pycache__/
