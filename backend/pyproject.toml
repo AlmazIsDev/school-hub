@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx", "fakeredis>=2.24"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
