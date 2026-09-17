@@ -1,14 +1,10 @@
 services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: schoolhub
-      POSTGRES_USER: hub
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
-    ports: ["5432:5432"]
-    volumes: [pgdata:/var/lib/postgresql/data]
+  mongo:
+    image: mongo:7
+    ports: ["27017:27017"]
+    volumes: [mongodata:/data/db]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hub -d schoolhub"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 3s
       retries: 15
   redis:
@@ -17,17 +13,17 @@ services:
   api:
     build: { context: ., dockerfile: docker/api.Dockerfile }
     environment:
-      DATABASE_URL: postgresql+asyncpg://hub:${POSTGRES_PASSWORD}@postgres:5432/schoolhub
+      MONGO_URL: mongodb://mongo:27017/schoolhub
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:?}
     depends_on:
-      postgres: { condition: service_healthy }
+      mongo: { condition: service_healthy }
       redis: { condition: service_started }
   bot:
     build: { context: ., dockerfile: docker/api.Dockerfile }
     command: ["python", "-m", "app.bot"]
     environment:
-      DATABASE_URL: postgresql+asyncpg://hub:${POSTGRES_PASSWORD}@postgres:5432/schoolhub
+      MONGO_URL: mongodb://mongo:27017/schoolhub
       REDIS_URL: redis://redis:6379/0
       VK_TOKEN: ${VK_TOKEN:-}
       VK_GROUP_ID: ${VK_GROUP_ID:-0}
@@ -37,4 +33,4 @@ services:
     ports: ["80:80"]
     depends_on: [api]
 volumes:
-  pgdata:
+  mongodata:

@@ -16,7 +16,7 @@ def get_current_user(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> di
         raise HTTPException(401, "Токен невалиден")
     if payload.get("type") != "access":
         raise HTTPException(401, "Нужен access-токен")
-    return {"id": int(payload["sub"]), "role": payload["role"]}
+    return {"id": payload["sub"], "role": payload["role"]}
 
 
 def require_role(*roles):

@@ -1,14 +1,12 @@
-from collections.abc import AsyncGenerator
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from beanie import init_beanie
+from motor.motor_asyncio import AsyncIOMotorClient
+
 from .config import settings
 
-class Base(DeclarativeBase):
-    pass
 
-engine = create_async_engine(settings.database_url)
-SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+async def init_mongo() -> None:
+    """Подключение к Mongo + инициализация Beanie. Вызывать на старте (api, бот, тесты)."""
+    from ..modules.users.models import SchoolClass, User  # noqa: PLC0415 — циклический импорт на уровне модуля
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with SessionLocal() as session:
-        yield session
+    client = AsyncIOMotorClient(settings.mongo_url)
+    await init_beanie(client.get_default_database(), document_models=[User, SchoolClass])

@@ -4,9 +4,7 @@ import app.core.redis as core_redis
 async def test_me_vk_code(client, db, monkeypatch):
     core_redis.get_redis = lambda: fr.FakeRedis()
     from app.modules.users.service import create_user
-    async with db() as s:
-        _, tmp = create_user(s, login="m1", full_name="У", role="student")
-        await s.commit()
+    _, tmp = await create_user(login="m1", full_name="У", role="student")
     tok = (await client.post("/api/auth/login", json={"login": "m1", "password": tmp})).json()
     h = {"Authorization": f"Bearer {tok['access']}"}
     r = await client.post("/api/me/vk-code", headers=h)
