@@ -1,24 +1,31 @@
-from datetime import datetime
-from sqlalchemy import String, ForeignKey, DateTime, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from ...core.db import Base
+from datetime import datetime, timezone
 
-class SchoolClass(Base):
-    __tablename__ = "school_classes"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    grade: Mapped[int]
-    letter: Mapped[str] = mapped_column(String(2))
-    users: Mapped[list["User"]] = relationship(back_populates="school_class")
+from beanie import Document
+from pymongo import IndexModel
 
-class User(Base):
-    __tablename__ = "users"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    login: Mapped[str] = mapped_column(String(64), unique=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
-    full_name: Mapped[str] = mapped_column(String(128))
-    role: Mapped[str] = mapped_column(String(16))  # student|teacher|admin
-    class_id: Mapped[int | None] = mapped_column(ForeignKey("school_classes.id"))
-    vk_id: Mapped[int | None] = mapped_column(unique=True)
-    password_temp: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    school_class: Mapped["SchoolClass | None"] = relationship(back_populates="users")
+
+class SchoolClass(Document):
+    grade: int
+    letter: str
+
+    class Settings:
+        name = "school_classes"
+
+
+class User(Document):
+    login: str
+    password_hash: str
+    full_name: str
+    role: str  # student|teacher|admin
+    class_id: str | None = None
+    vk_id: int | None = None
+    password_temp: bool = True
+    created_at: datetime = datetime.now(timezone.utc)
+
+    class Settings:
+        name = "users"
+        indexes = [
+            IndexModel([("login", 1)], unique=True),
+            # sparse: у многих vk_id = None, уникальность нужна только для привязанных
+            IndexModel([("vk_id", 1)], unique=True, sparse=True),
+        ]

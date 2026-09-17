@@ -1,10 +1,19 @@
 import logging, time, uuid
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
+from .core.db import init_mongo
 from .core.logging import setup_logging, request_id
 
 def create_app() -> FastAPI:
     setup_logging()
-    app = FastAPI(title="School Hub")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        await init_mongo()
+        yield
+
+    app = FastAPI(title="School Hub", lifespan=lifespan)
 
     @app.middleware("http")
     async def rid_middleware(request: Request, call_next):
