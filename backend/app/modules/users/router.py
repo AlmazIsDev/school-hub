@@ -42,6 +42,8 @@ async def first_password(body: schemas.FirstPasswordIn, user: dict = Depends(get
     if len(body.new_password) < 8:
         raise HTTPException(422, "Минимум 8 символов")
     u = await db.get(User, user["id"])
+    if not u:
+        raise HTTPException(401, "Пользователь не найден")
     u.password_hash, u.password_temp = hash_password(body.new_password), False
     await db.commit()
     return {"ok": True}
@@ -87,6 +89,8 @@ async def me_vk_code(user: dict = Depends(get_current_user)):
 @router.delete("/me/vk")
 async def me_vk_unlink(user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     u = await db.get(User, user["id"])
+    if not u:
+        raise HTTPException(401, "Пользователь не найден")
     u.vk_id = None
     await db.commit()
     return {"ok": True}

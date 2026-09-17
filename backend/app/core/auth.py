@@ -2,7 +2,7 @@ import time
 
 import jwt
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 from .config import settings
 
@@ -16,7 +16,7 @@ def hash_password(pw: str) -> str:
 def verify_password(pw: str, h: str) -> bool:
     try:
         return _ph.verify(h, pw)
-    except VerifyMismatchError:
+    except (VerifyMismatchError, InvalidHashError):
         return False
 
 

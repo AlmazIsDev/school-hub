@@ -42,3 +42,21 @@ async def test_refresh_invalid_tokens(client, db):
     for bad in ("garbage", access):
         r = await client.post("/api/auth/refresh", json={"refresh": bad})
         assert r.status_code == 401
+
+async def test_verify_password_bad_hash():
+    from app.core.auth import verify_password
+    assert verify_password("pw", "not-an-argon2-hash") is False
+
+async def test_first_password_deleted_user_401(client, db):
+    from app.core.auth import make_tokens
+    tok = make_tokens(9999, "student")["access"]
+    h = {"Authorization": f"Bearer {tok}"}
+    r = await client.post("/api/auth/first-password", json={"new_password": "NewPass1"}, headers=h)
+    assert r.status_code == 401
+
+async def test_vk_unlink_deleted_user_401(client, db):
+    from app.core.auth import make_tokens
+    tok = make_tokens(9999, "student")["access"]
+    h = {"Authorization": f"Bearer {tok}"}
+    r = await client.delete("/api/me/vk", headers=h)
+    assert r.status_code == 401
