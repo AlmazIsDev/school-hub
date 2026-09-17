@@ -1,10 +1,8 @@
 import secrets
 
-import redis.asyncio as aioredis
+from ..core.redis import get_redis
 
-from ..core.config import settings
-
-r = aioredis.from_url(settings.redis_url, decode_responses=True)
+r = get_redis()
 
 CODE_TTL = 900
 

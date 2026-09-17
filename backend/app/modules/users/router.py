@@ -1,7 +1,10 @@
+import secrets
+
 import jwt
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from ...core import redis as core_redis
 from ...core.db import get_db
 from ...core.auth import verify_password, make_tokens, decode_token, hash_password
 from ...core.security import get_current_user, require_role
@@ -72,3 +75,18 @@ async def create_class(body: schemas.ClassIn, user: dict = Depends(require_role(
 async def list_classes(user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     rows = (await db.execute(select(SchoolClass))).scalars().all()
     return [{"id": c.id, "grade": c.grade, "letter": c.letter} for c in rows]
+
+
+@router.post("/me/vk-code")
+async def me_vk_code(user: dict = Depends(get_current_user)):
+    code = f"{secrets.randbelow(900000) + 100000}"
+    await core_redis.get_redis().set(f"vkcode:{code}", user["id"], ex=900)
+    return {"code": code}
+
+
+@router.delete("/me/vk")
+async def me_vk_unlink(user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    u = await db.get(User, user["id"])
+    u.vk_id = None
+    await db.commit()
+    return {"ok": True}
