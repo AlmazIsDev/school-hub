@@ -10,7 +10,8 @@ export function getTokens() {
 
 export function setTokens(t: Tokens | null) {
   tokens = t;
-  t ? localStorage.setItem("tokens", JSON.stringify(t)) : localStorage.removeItem("tokens");
+  if (t) localStorage.setItem("tokens", JSON.stringify(t));
+  else localStorage.removeItem("tokens");
 }
 
 export async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
