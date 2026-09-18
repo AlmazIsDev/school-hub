@@ -41,6 +41,8 @@ async def delete_building(building_id: str, user: dict = Depends(require_role("a
     floors = await Floor.find(Floor.building_id == building_id).to_list()
     if floors:
         # каскад: этажи с комнатами снесём вместе со зданием
+        # ponytail: без транзакции (нужен replica set) — здание удаляем последним,
+        # сироты при сбое halfway не видны в поиске по живому зданию
         floor_ids = [str(f.id) for f in floors]
         await Room.find({"floor_id": {"$in": floor_ids}}).delete()
         for f in floors:
@@ -55,6 +57,8 @@ async def delete_building(building_id: str, user: dict = Depends(require_role("a
 async def create_floor(body: schemas.FloorIn, user: dict = Depends(require_role("admin"))):
     if not await Building.get(_get(body.building_id)):
         raise HTTPException(404, "Здание не найдено")
+    if await Floor.find_one(Floor.building_id == body.building_id, Floor.level == body.level):
+        raise HTTPException(409, "Этаж с таким уровнем уже есть")
     f = Floor(building_id=body.building_id, level=body.level)
     await f.insert()
     return {"id": str(f.id), "building_id": f.building_id, "level": f.level, "plan_id": f.plan_id}
@@ -134,6 +138,8 @@ async def search_rooms(q: str, user: dict = Depends(get_current_user)):
     q = q.strip()
     if not q:
         raise HTTPException(422, "Пустой запрос")
+    if len(q) > 64:
+        raise HTTPException(422, "Слишком длинный запрос")
     rooms = await Room.find(
         {"number": {"$regex": f"^{re.escape(q)}", "$options": "i"}}
     ).limit(20).to_list()

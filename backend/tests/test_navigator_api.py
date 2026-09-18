@@ -198,3 +198,21 @@ async def test_search_limit_and_empty(client, tokens, floor):
     assert len(r.json()) == 20
     r = await client.get("/api/nav/search?q=", headers=_h(tokens["student"]))
     assert r.status_code == 422
+
+
+async def test_room_requires_admin(client, db):
+    st = _h(await _mk_user("s2", "student"))
+    for method, url in (("post", "/api/nav/rooms"), ("put", "/api/nav/rooms/x"),
+                        ("delete", "/api/nav/rooms/x")):
+        r = await getattr(client, method)(url, headers=st)
+        assert r.status_code == 403, f"{method} {url} -> {r.status_code}"
+
+
+async def test_duplicate_floor_level_409(client, db):
+    ad = _h(await _mk_user("a2", "admin"))
+    b = (await client.post("/api/nav/buildings", json={"name": "Ш", "address": "У"},
+                           headers=ad)).json()["id"]
+    body = {"building_id": b, "level": 1}
+    assert (await client.post("/api/nav/floors", json=body, headers=ad)).status_code == 200
+    r = await client.post("/api/nav/floors", json=body, headers=ad)
+    assert r.status_code == 409

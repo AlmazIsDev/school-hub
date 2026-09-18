@@ -1,3 +1,5 @@
+import math
+
 from pydantic import BaseModel, field_validator
 
 from .models import GeoPolygon
@@ -42,10 +44,13 @@ class RoomIn(BaseModel):
             raise ValueError("geometry.type должен быть Polygon")
         if not g.coordinates:
             raise ValueError("geometry.coordinates пуст")
-        ring = g.coordinates[0]
-        if len(ring) < 3:
-            raise ValueError("в первом кольце минимум 3 точки")
-        for p in ring:
-            if len(p) != 2:
-                raise ValueError("точка должна быть [x, y]")
+        # валидируем все кольца (дырки Leaflet Draw не рисует, но данные могут прийти)
+        for ring in g.coordinates:
+            if len(ring) < 3:
+                raise ValueError("в кольце минимум 3 точки")
+            for p in ring:
+                if len(p) != 2 or not all(
+                    isinstance(v, (int, float)) and math.isfinite(v) for v in p
+                ):
+                    raise ValueError("точка должна быть [x, y] из конечных чисел")
         return g
