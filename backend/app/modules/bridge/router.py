@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ...core.security import require_role
 from . import schemas, service
-from .models import Ban, HelperTopic, Report, StopWord
+from .models import Ban, HelperTopic, PairMessage, Report, StopWord
 
 router = APIRouter(prefix="/api/bridge", tags=["bridge"])
 
@@ -26,10 +26,13 @@ async def list_reports(status: str = "open",
     rows = await Report.find(Report.status == status).to_list()
     out = []
     for r in rows:
+        msg = await PairMessage.get(r.message_id) if r.message_id else None
         out.append({"id": str(r.id), "reporter_id": r.reporter_id,
+                    "reporter_full_name": await service.full_name(r.reporter_id),
                     "reported_user_id": r.reported_user_id,
                     "reported_full_name": await service.full_name(r.reported_user_id),
-                    "message_id": r.message_id, "reason": r.reason, "status": r.status,
+                    "message_id": r.message_id, "message_text": msg.text if msg else None,
+                    "reason": r.reason, "status": r.status,
                     "created_at": r.created_at})
     return out
 
