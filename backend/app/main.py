@@ -38,6 +38,8 @@ def create_app() -> FastAPI:
     app.include_router(bridge_router)
     from .modules.duty.router import router as duty_router
     app.include_router(duty_router)
+    from .modules.navigator.router import router as navigator_router
+    app.include_router(navigator_router)
 
     @app.get("/healthz")
     async def healthz():
