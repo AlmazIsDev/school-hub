@@ -3,6 +3,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from ..core import redis as core_redis
+from pymongo.errors import DuplicateKeyError
+
 from ..modules.duty.models import DutyCompletion, DutySchedule, DutyZone
 from ..modules.users.models import User
 from .pulse_bot import _send
@@ -93,14 +95,20 @@ async def _on_done(payload: dict, event, vk, now: datetime | None = None):
     u = await User.find_one(User.vk_id == vk_id)
     if not u:
         return
-    schedule = await DutySchedule.get(payload.get("schedule_id", ""))
+    weekday, slot = payload.get("weekday"), payload.get("slot")
+    try:
+        schedule = await DutySchedule.get(payload.get("schedule_id", ""))
+    except Exception:
+        return
     if not schedule:
         return
-    weekday, slot = payload.get("weekday"), payload.get("slot")
+    loc = _local(now or datetime.now(timezone.utc))
+    # отметка только в день дежурства — старые клавиатуры VK сохраняются в переписке
+    if weekday != loc.isoweekday():
+        return
     if not any(s.user_id == str(u.id) and s.weekday == weekday and s.slot == slot
                for s in schedule.week_pattern):
         return
-    loc = _local(now or datetime.now(timezone.utc))
     date = datetime(loc.year, loc.month, loc.day, tzinfo=timezone.utc)
     if await DutyCompletion.find_one(DutyCompletion.schedule_id == str(schedule.id),
                                      DutyCompletion.weekday == weekday,
@@ -112,9 +120,8 @@ async def _on_done(payload: dict, event, vk, now: datetime | None = None):
     try:
         await DutyCompletion(schedule_id=str(schedule.id), weekday=weekday,
                              slot=slot, user_id=str(u.id), date=date).insert()
-    except Exception:
+    except DuplicateKeyError:
         # compound unique index ловит гонку двойного клика
-        log.exception("дубль completion schedule=%s user=%s", schedule.id, u.id)
         await _send(vk, peer, ALREADY_DONE)
         return
     await _send(vk, peer, DONE)
@@ -154,7 +161,7 @@ async def duty_tick(now: datetime, vk):
             else:
                 continue
             key = f"duty_rem:{schedule.id}:{sl.weekday}:{sl.slot}:{date}:{kind}"
-            if not await _r().set(key, "1", nx=True, ex=REM_TTL):
+            if await _r().get(key):
                 continue
             if zone is None:
                 z = await DutyZone.get(schedule.zone_id)
@@ -172,3 +179,6 @@ async def duty_tick(now: datetime, vk):
                 await _send(vk, users[sl.user_id], text)
             except Exception:
                 log.exception("напоминание duty не дошло vk=%s", users[sl.user_id])
+                continue
+            # ключ только после успешной отправки — при сбое VK напоминание повторится
+            await _r().set(key, "1", ex=REM_TTL)
