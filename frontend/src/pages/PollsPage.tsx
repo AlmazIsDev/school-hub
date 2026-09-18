@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Badge, Button, Card, Group, NativeSelect, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Link } from "react-router-dom";
 import { apiFetch } from "../api";
 import { useAuth } from "../auth";
 
@@ -17,6 +18,13 @@ type Poll = {
 };
 
 type SchoolClass = { id: string; grade: number; letter: string };
+
+type WeakTopic = { poll_id: string; title: string; topic: string; avg: number; n_answers: number };
+
+type CompareResult = {
+  a: { title: string; avgs: (number | null)[] };
+  b: { title: string; avgs: (number | null)[] };
+};
 
 const STATUS_BADGE: Record<Poll["status"], { color: string; label: string }> = {
   draft: { color: "gray", label: "Черновик" },
@@ -48,6 +56,12 @@ export default function PollsPage() {
   const [classId, setClassId] = useState("");
   const [questions, setQuestions] = useState<Question[]>([emptyQuestion()]);
 
+  // аналитика
+  const [weak, setWeak] = useState<WeakTopic[]>([]);
+  const [compareA, setCompareA] = useState("");
+  const [compareB, setCompareB] = useState("");
+  const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
+
   async function refresh() {
     try {
       setPolls(await apiFetch<Poll[]>("/pulse/polls"));
@@ -59,6 +73,7 @@ export default function PollsPage() {
   useEffect(() => {
     refresh();
     apiFetch<SchoolClass[]>("/classes").then(setClasses).catch(() => {});
+    if (canManage) apiFetch<WeakTopic[]>("/pulse/topics").then(setWeak).catch(() => {});
   }, []);
 
   function setQuestion(i: number, patch: Partial<Question>) {
@@ -107,6 +122,58 @@ export default function PollsPage() {
 
   const classOptions = classes.map((c) => ({ value: c.id, label: `${c.grade}«${c.letter}»` }));
 
+  const closedPolls = polls.filter((p) => p.status === "closed");
+  const closedByTopic = new Map<string, Poll[]>();
+  for (const p of closedPolls) {
+    closedByTopic.set(p.topic, [...(closedByTopic.get(p.topic) ?? []), p]);
+  }
+
+  // В списке B — только опросы той же темы, что выбрана в A
+  function sameAsA(topics: [string, Poll[]][], pollA: string) {
+    const topic = topics.flatMap(([t, ps]) => (ps.some((p) => p.id === pollA) ? [t] : []))[0];
+    return (topics.find(([t]) => t === topic)?.[1] ?? [])
+      .filter((p) => p.id !== pollA)
+      .map((p) => ({ value: p.id, label: `${topic} — ${p.title}` }));
+  }
+
+  async function runCompare() {
+    setError(null);
+    setCompareResult(null);
+    try {
+      setCompareResult(await apiFetch<CompareResult>(
+        `/pulse/compare?a=${compareA}&b=${compareB}`));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось сравнить");
+    }
+  }
+
+  // Пары для сравнения: только закрытые опросы с одинаковой темой
+  const comparableTopics = [...closedByTopic.entries()].filter(([, ps]) => ps.length >= 2);
+
+  function renderCompareTable() {
+    if (!compareResult) return null;
+    return (
+      <Table withTableBorder verticalSpacing="xs" maw={480}>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Шкальный вопрос</Table.Th>
+            <Table.Th>{compareResult.a.title}</Table.Th>
+            <Table.Th>{compareResult.b.title}</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {compareResult.a.avgs.map((avgA, i) => (
+            <Table.Tr key={i}>
+              <Table.Td>Вопрос {i + 1}</Table.Td>
+              <Table.Td>{avgA ?? "—"}</Table.Td>
+              <Table.Td>{compareResult!.b.avgs[i] ?? "—"}</Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    );
+  }
+
   return (
     <Stack gap="md">
       <Title order={1} size="h2">Опросы</Title>
@@ -152,6 +219,9 @@ export default function PollsPage() {
                   <Group gap="xs">
                     {p.status === "draft" && <Button size="xs" onClick={() => act(p, "publish")}>Опубликовать</Button>}
                     {p.status === "active" && <Button size="xs" variant="outline" color="red" onClick={() => act(p, "close")}>Закрыть</Button>}
+                    {p.status === "closed" && (
+                      <Button size="xs" variant="light" component={Link} to={`/polls/${p.id}/results`}>Результаты</Button>
+                    )}
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -161,6 +231,60 @@ export default function PollsPage() {
             )}
           </Table.Tbody>
         </Table>
+      )}
+
+      {canManage && weak.length > 0 && (
+        <Card withBorder>
+          <Stack gap="sm">
+            <Title order={2} size="h3">Просевшие темы (средняя ниже 3.5)</Title>
+            <Table withTableBorder verticalSpacing="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Опрос</Table.Th>
+                  <Table.Th>Тема</Table.Th>
+                  <Table.Th>Средняя</Table.Th>
+                  <Table.Th>Ответов</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {weak.map((w) => (
+                  <Table.Tr key={w.poll_id}>
+                    <Table.Td>{w.title}</Table.Td>
+                    <Table.Td>{w.topic}</Table.Td>
+                    <Table.Td><Text c="red" span>{w.avg}</Text></Table.Td>
+                    <Table.Td>{w.n_answers}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Stack>
+        </Card>
+      )}
+
+      {canManage && comparableTopics.length > 0 && (
+        <Card withBorder>
+          <Stack gap="sm">
+            <Title order={2} size="h3">Сравнение опросов</Title>
+            <Group align="flex-end" gap="sm">
+              <Select
+                label="Опрос A"
+                data={comparableTopics.flatMap(([topic, ps]) => ps.map((p) => ({ value: p.id, label: `${topic} — ${p.title}` })))}
+                value={compareA}
+                onChange={(v) => setCompareA(v ?? "")}
+                w={320}
+              />
+              <Select
+                label="Опрос B"
+                data={sameAsA(comparableTopics, compareA)}
+                value={compareB}
+                onChange={(v) => setCompareB(v ?? "")}
+                w={320}
+              />
+              <Button disabled={!compareA || !compareB} onClick={runCompare}>Сравнить</Button>
+            </Group>
+            {renderCompareTable()}
+          </Stack>
+        </Card>
       )}
 
       {canManage && (
