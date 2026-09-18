@@ -14,11 +14,12 @@ export function setTokens(t: Tokens | null) {
   else localStorage.removeItem("tokens");
 }
 
-export async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
+async function rawFetch(path: string, opts: RequestInit): Promise<Response> {
   const r = await fetch(base + path, {
     ...opts,
     headers: {
-      "Content-Type": "application/json",
+      // FormData выставляет свой multipart Content-Type с boundary — не трогаем
+      ...(opts.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(tokens ? { Authorization: `Bearer ${tokens.access}` } : {}),
       ...opts.headers,
     },
@@ -31,12 +32,28 @@ export async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise
     });
     if (rr.ok) {
       setTokens(await rr.json());
-      return apiFetch<T>(path, opts);
+      return rawFetch(path, opts);
     }
     setTokens(null);
   }
-  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.detail ?? `HTTP ${r.status}`);
+  return r;
+}
+
+async function unwrapError(r: Response): Promise<never> {
+  throw new Error((await r.json().catch(() => ({})))?.detail ?? `HTTP ${r.status}`);
+}
+
+export async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  const r = await rawFetch(path, opts);
+  if (!r.ok) return unwrapError(r);
   return r.json();
+}
+
+/** То же, что apiFetch, но возвращает blob (планы этажей — с Authorization, не по прямой ссылке). */
+export async function apiBlob(path: string): Promise<Blob> {
+  const r = await rawFetch(path, {});
+  if (!r.ok) return unwrapError(r);
+  return r.blob();
 }
 
 /** Декодирует payload JWT без проверки подписи — роль и id нужны только для UI. */
