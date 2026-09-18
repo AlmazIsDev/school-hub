@@ -1,5 +1,5 @@
 from ..modules.users import service
-from . import bridge_bot, codes, duty_bot, pulse_bot
+from . import bridge_bot, builder_bot, codes, duty_bot, pulse_bot
 
 
 def register(dp):
@@ -17,6 +17,7 @@ def register(dp):
             "закончить — закрыть активную пару (только в паре)\n"
             "пожаловаться — жалоба на напарника (только в паре)\n"
             "дежурство — ближайший слот дежурства\n"
+            "квест — пройти квест своего класса\n"
             "отмена — прервать текущий сценарий\n"
             "help — этот список\n\n"
             "Код для привязки берётся в профиле на сайте.",
@@ -88,6 +89,10 @@ def register(dp):
     async def duty(event, vk):
         await duty_bot.handle_duty(event, vk)
 
+    @dp.on(r"^/?(?:квест|квесты)$")
+    async def quest(event, vk):
+        await builder_bot.handle_quest(event, vk)
+
     # catch-all последним: кнопки опроса и bridge-сценариев (payload),
     # свободные ответы. Сценарии взаимоисключающие (разные state-ключи):
     # pulse смотрит pollstate, bridge — bridgestate и активные пары.
@@ -96,3 +101,4 @@ def register(dp):
         await pulse_bot.handle_message(event, vk)
         await bridge_bot.handle_message(event, vk)
         await duty_bot.handle_message(event, vk)
+        await builder_bot.handle_message(event, vk)
