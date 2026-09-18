@@ -75,6 +75,15 @@ async def list_classes(user: dict = Depends(get_current_user)):
     return [{"id": str(c.id), "grade": c.grade, "letter": c.letter} for c in rows]
 
 
+@router.get("/me")
+async def me(user: dict = Depends(get_current_user)):
+    u = await service.by_id(user["id"])
+    if not u:
+        raise HTTPException(401, "Пользователь не найден")
+    return {"id": str(u.id), "login": u.login, "full_name": u.full_name, "role": u.role,
+            "class_id": u.class_id, "vk_id": u.vk_id}
+
+
 @router.post("/me/vk-code")
 async def me_vk_code(user: dict = Depends(get_current_user)):
     code = f"{secrets.randbelow(900000) + 100000}"

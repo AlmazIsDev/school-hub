@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, PasswordInput, Stack, Text, Title } from "@mantine/core";
 import { apiFetch } from "../api";
 import { useAuth } from "../auth";
@@ -12,6 +12,12 @@ export default function Profile() {
   const [vkCode, setVkCode] = useState<string | null>(null);
   const [vkLinked, setVkLinked] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    apiFetch<{ vk_id: number | null }>("/me")
+      .then((res) => setVkLinked(res.vk_id != null))
+      .catch(() => {});
+  }, []);
 
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
