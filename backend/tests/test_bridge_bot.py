@@ -313,6 +313,69 @@ async def test_text_without_pair_or_state_ignored(db, fake_redis, vk):
     assert vk.calls == []
 
 
+async def test_banned_in_pair_no_forward(db, fake_redis, vk):
+    helper = await _mk_user(100, "Помощник")
+    seeker = await _mk_user(200, "Заявитель")
+    await TutorPair(helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
+    await Ban(user_id=str(helper.id), reason="тест").insert()  # until=None — навсегда
+
+    await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "привет"}, vk)
+    assert len(await PairMessage.find_all().to_list()) == 0
+    assert _calls_to(vk, 200) == []
+    assert any("Вы заблокированы" in c["message"] for c in _calls_to(vk, 100))
+
+
+async def test_need_help_while_in_pair_rejected(db, fake_redis, vk):
+    helper = await _mk_user(100, "П")
+    seeker = await _mk_user(200, "З")
+    await TutorPair(helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
+
+    await bridge_bot.start_need_help({"vk_user_id": 200, "peer_id": 200}, vk)
+    assert len(await HelpRequest.find_all().to_list()) == 0
+    assert "bridgestate:200" not in fake_redis.data
+    assert any("уже в паре" in c["message"] for c in _calls_to(vk, 200))
+
+
+async def test_stale_confirm_with_rate_state(db, fake_redis, vk):
+    await _mk_user(100)
+    fake_redis.data["bridgestate:100"] = json.dumps(
+        {"flow": "rate", "pair_id": "x", "role": "seeker"})
+
+    await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100,
+                                     "payload": json.dumps({"bridge": "confirm", "v": "Да"}),
+                                     "text": "Да"}, vk)
+    assert len(await HelperTopic.find_all().to_list()) == 0
+    # rate-state не тронут
+    assert json.loads(fake_redis.data["bridgestate:100"])["flow"] == "rate"
+    assert any("Сценарий истёк" in c["message"] for c in _calls_to(vk, 100))
+
+
+async def test_payload_without_state_expired(db, fake_redis, vk):
+    await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100,
+                                     "payload": json.dumps({"bridge": "confirm", "v": "Да"}),
+                                     "text": "Да"}, vk)
+    assert any("Сценарий истёк" in c["message"] for c in _calls_to(vk, 100))
+    assert len(await HelperTopic.find_all().to_list()) == 0
+
+
+async def test_helper_at_pair_cap_skipped(db, fake_redis, vk):
+    capped = await _mk_user(500, "Загруженный")
+    free = await _mk_user(400, "Свободный")
+    await HelperTopic(user_id=str(capped.id), topic="физика").insert()
+    await HelperTopic(user_id=str(free.id), topic="физика").insert()
+    other = await _mk_user(600, "Другой")
+    for _ in range(bridge_bot.MAX_ACTIVE_PAIRS):
+        await TutorPair(helper_id=str(capped.id), seeker_id=str(other.id), chat_key="x").insert()
+    seeker = await _mk_user(700, "Заявитель")  # не участник существующих пар
+
+    await bridge_bot.start_need_help({"vk_user_id": 700, "peer_id": 700}, vk)
+    await bridge_bot.handle_message({"vk_user_id": 700, "peer_id": 700, "text": "физика"}, vk)
+    pair = [p for p in await TutorPair.find_all().to_list() if p.helper_id == str(free.id)]
+    assert len(pair) == 1  # новый pair создан для свободного, capped не перегружен
+    assert len([p for p in await TutorPair.find_all().to_list()
+                if p.helper_id == str(capped.id)]) == bridge_bot.MAX_ACTIVE_PAIRS
+
+
 async def test_poll_state_takes_priority(db, fake_redis, vk):
     helper = await _mk_user(100, "П")
     seeker = await _mk_user(200, "З")

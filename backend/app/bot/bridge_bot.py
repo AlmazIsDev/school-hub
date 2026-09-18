@@ -20,6 +20,10 @@ from .pulse_bot import _send
 log = logging.getLogger("bot")
 
 STATE_TTL = 60 * 10
+MAX_ACTIVE_PAIRS = 3  # потолок пар на одного помощника
+
+EXPIRED = "Сценарий истёк. Начни заново."
+IN_PAIR = "Ты уже в паре. Напиши «закончить», когда завершите."
 
 ASK_TOPIC = "Какой предмет? Напиши тему одним сообщением."
 CONFIRM = "Регистрируем тебя как помощника по теме «{topic}»?"
@@ -102,7 +106,10 @@ async def _guard_ban(user_id: str, vk, peer_id: int) -> bool:
 
 
 async def _best_helper(topic: str, exclude: str) -> str | None:
-    """Кандидат по теме: не сам, не в бане, vk привязан; минимум активных пар."""
+    """Кандидат по теме: не сам, не в бане, vk привязан; минимум активных пар.
+    ponytail: N+1 по кандидатам (пользователь + баны + пары на каждого) —
+    при школьных объёмах (десятки тем/кандидатов) норм; если станет больно,
+    агрегировать пары одним запросом и кэшировать баны."""
     best, best_n = None, None
     for t in await HelperTopic.find(HelperTopic.topic == topic).to_list():
         if t.user_id == exclude:
@@ -114,6 +121,8 @@ async def _best_helper(topic: str, exclude: str) -> str | None:
             continue
         n = len(await TutorPair.find(
             TutorPair.helper_id == t.user_id, TutorPair.status == "active").to_list())
+        if n >= MAX_ACTIVE_PAIRS:
+            continue
         if best is None or n < best_n:
             best, best_n = t.user_id, n
     return best
@@ -175,6 +184,9 @@ async def start_need_help(event, vk):
         return
     if await _guard_ban(str(u.id), vk, peer):
         return
+    if await _active_pair(str(u.id)):
+        await _send(vk, peer, IN_PAIR)
+        return
     await _set_state(vk_id, {"flow": "need_help", "step": "topic"})
     await _send(vk, peer, ASK_TOPIC)
 
@@ -183,6 +195,8 @@ async def start_report(event, vk):
     vk_id, peer = event["vk_user_id"], event["peer_id"]
     u = await _user_by_vk(vk_id)
     if not u:
+        return
+    if await _guard_ban(str(u.id), vk, peer):
         return
     pair = await _active_pair(str(u.id))
     if not pair:
@@ -289,6 +303,8 @@ async def _forward_if_paired(event, vk):
     u = await _user_by_vk(vk_id)
     if not u:
         return
+    if await _guard_ban(str(u.id), vk, peer):
+        return
     pair = await _active_pair(str(u.id))
     if not pair:
         return
@@ -318,10 +334,18 @@ async def handle_message(event, vk):
     state_raw = await r.get(_state_key(vk_id))
     payload = _parse_payload(event.get("payload"))
     if payload:
-        if payload.get("bridge") == "confirm" and state_raw:
-            await _on_confirm(payload, json.loads(state_raw), event, vk)
-        elif payload.get("bridge") == "rate" and state_raw:
-            await _on_rate(payload, json.loads(state_raw), event, vk)
+        kind = payload.get("bridge")
+        if kind not in ("confirm", "rate"):
+            return
+        state = json.loads(state_raw) if state_raw else None
+        # flow-гвард: stale-кнопка чужого сценария не должна срабатывать
+        if state and state.get("flow") == ("become_helper" if kind == "confirm" else "rate"):
+            if kind == "confirm":
+                await _on_confirm(payload, state, event, vk)
+            else:
+                await _on_rate(payload, state, event, vk)
+        else:
+            await _send(vk, event["peer_id"], EXPIRED)
         return
     text = (event.get("text") or "").strip()
     if not text:
