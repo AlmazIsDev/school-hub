@@ -93,6 +93,7 @@ def validate_structure(structure: QuestStructure) -> list[str]:
     reachable: set[str] = set()
     on_path: set[str] = set()
 
+    # ponytail: рекурсия — глубина графа; итеративный стек, если квесты станут огромными
     def visit(bid: str) -> None:
         if bid in on_path:
             errors.append(f"цикл через блок {bid}")

@@ -229,3 +229,17 @@ async def test_play_other_class_403(client, env):
                                headers=_h(env["teacher"]))).json()["id"]
     r = await client.get(f"/api/builder/quests/{draft}/play", headers=_h(env["student"]))
     assert r.status_code == 409
+
+
+def test_diamond_no_false_positive():
+    # ромб q1 -> a -> e, q1 -> b -> e: merge в один end, цикла нет
+    blocks = [
+        {"id": "q1", "type": "question", "text": "?", "options": ["1", "2"], "next": "a"},
+        {"id": "a", "type": "hint", "text": "a", "next": "e"},
+        {"id": "b", "type": "hint", "text": "b", "next": "e"},
+        {"id": "e", "type": "end", "score": 5},
+    ]
+    # q1.next указывает на a; нужен второй переход q1->b — сделаем через branch
+    blocks[0] = {"id": "q1", "type": "branch", "condition": {"answer": "1"},
+                 "then": "a", "else": "b"}
+    assert validate_structure(QuestStructure(blocks=blocks)) == []

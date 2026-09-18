@@ -95,6 +95,7 @@ async def play_quest(quest_id: str, user: dict = Depends(get_current_user)):
     q = await _get_quest(quest_id)
     if q.status != "published":
         raise HTTPException(409, "Квест не опубликован")
+    # teacher/admin могут смотреть published чужих квестов — превью без класса
     if user["role"] == "student":
         me = await User.get(ObjectId(user["id"]))
         if not me or q.class_id != me.class_id:
