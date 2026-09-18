@@ -4,19 +4,37 @@ from ..users import service as users_service
 from .models import Ban, StopWord, TutorPair
 
 
-async def check_text(text: str) -> bool:
-    """True = текст чистый. Substring по стоп-словам из БД — без морфологии.
+async def text_hit(text: str) -> str | None:
+    """Первое стоп-слово в тексте или None. Substring по списку из БД — без морфологии.
     ponytail: substring ловит «мат» в «математике» — держи список от коротких корней,
     по словам/морфологии если ложные срабатывания станут реальной проблемой."""
     low = text.lower()
-    words = [w.word for w in await StopWord.find_all().to_list()]
-    return not any(w in low for w in words)
+    for w in await StopWord.find_all().to_list():
+        if w.word in low:
+            return w.word
+    return None
+
+
+async def check_text(text: str) -> bool:
+    """True = текст чистый."""
+    return await text_hit(text) is None
+
+
+async def active_ban(user_id: str) -> Ban | None:
+    now = datetime.now(timezone.utc)
+    bans = await Ban.find(Ban.user_id == user_id).to_list()
+    for b in bans:
+        if b.until is None:
+            return b
+        # mongomock в тестах теряет tzinfo — приводим наивное время к UTC
+        until = b.until if b.until.tzinfo else b.until.replace(tzinfo=timezone.utc)
+        if until > now:
+            return b
+    return None
 
 
 async def is_banned(user_id: str) -> bool:
-    now = datetime.now(timezone.utc)
-    bans = await Ban.find(Ban.user_id == user_id).to_list()
-    return any(b.until is None or b.until > now for b in bans)
+    return await active_ban(user_id) is not None
 
 
 async def helper_stats(user_id: str) -> dict:
