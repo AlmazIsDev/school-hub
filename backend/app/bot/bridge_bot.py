@@ -128,7 +128,10 @@ async def _best_helper(topic: str, exclude: str) -> str | None:
     return best
 
 
-async def _create_pair(topic: str, request: HelpRequest, helper_id: str, vk) -> TutorPair:
+async def _create_pair(topic: str, request: HelpRequest, helper_id: str, vk) -> TutorPair | None:
+    # никто из участников не должен быть в другой активной паре
+    if await _active_pair(helper_id) or await _active_pair(request.user_id):
+        return None
     pair = await TutorPair(
         request_id=str(request.id), helper_id=helper_id, seeker_id=request.user_id,
         chat_key=uuid.uuid4().hex,
@@ -161,7 +164,8 @@ async def try_match(topic: str, vk) -> int:
         helper_id = await _best_helper(topic, exclude=req.user_id)
         if not helper_id:
             continue
-        await _create_pair(topic, req, helper_id, vk)
+        if not await _create_pair(topic, req, helper_id, vk):
+            continue
         created += 1
     return created
 
