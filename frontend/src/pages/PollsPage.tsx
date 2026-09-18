@@ -63,6 +63,7 @@ export default function PollsPage() {
   const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
 
   async function refresh() {
+    setError(null);
     try {
       setPolls(await apiFetch<Poll[]>("/pulse/polls"));
     } catch (err) {
@@ -101,6 +102,7 @@ export default function PollsPage() {
       });
       setTitle("");
       setTopic("");
+      setClassId("");
       setQuestions([emptyQuestion()]);
       await refresh();
     } catch (err) {
@@ -111,12 +113,16 @@ export default function PollsPage() {
   }
 
   async function act(poll: Poll, action: "publish" | "close") {
+    if (busy) return;
     setError(null);
+    setBusy(true);
     try {
       await apiFetch(`/pulse/polls/${poll.id}/${action}`, { method: "POST" });
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось изменить статус");
+    } finally {
+      setBusy(false);
     }
   }
 
