@@ -28,6 +28,11 @@ export default function Layout() {
           active={location.pathname === "/profile"}
           onClick={() => { navigate("/profile"); toggle(); }}
         />
+        <NavLink
+          label="Опросы"
+          active={location.pathname === "/polls"}
+          onClick={() => { navigate("/polls"); toggle(); }}
+        />
       </AppShell.Navbar>
       <AppShell.Main>
         <Outlet />

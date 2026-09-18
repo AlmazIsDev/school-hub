@@ -4,6 +4,7 @@ import Layout from "./Layout";
 import { useAuth } from "./auth";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
+import PollsPage from "./pages/PollsPage";
 
 function Guard({ children }: { children: React.ReactNode }) {
   const { user, mustChangePassword } = useAuth();
@@ -27,6 +28,7 @@ export default function App() {
       <Route element={<Guard><Layout /></Guard>}>
         <Route path="/" element={<Home />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/polls" element={<PollsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
