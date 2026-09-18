@@ -4,6 +4,13 @@
 set -e
 cd "$(dirname "$0")"
 
+# Порты из .env (compose читает его сам, сюда — для uvicorn и vite)
+if [ -f .env ]; then
+  set -a; source .env; set +a
+fi
+API_PORT="${API_PORT:-8000}"
+FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+
 docker compose up -d mongo redis
 
 cleanup() {
@@ -11,7 +18,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-(cd backend && uvicorn app.main:app --reload) &
-(cd frontend && npm run dev) &
+(cd backend && uvicorn app.main:app --reload --port "$API_PORT") &
+(cd frontend && npm run dev -- --port "$FRONTEND_PORT") &
 
 wait

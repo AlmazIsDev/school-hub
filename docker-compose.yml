@@ -1,7 +1,7 @@
 services:
   mongo:
     image: mongo:7
-    ports: ["27017:27017"]
+    ports: ["${MONGO_PORT:-27017}:27017"]
     volumes: [mongodata:/data/db]
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
@@ -9,9 +9,10 @@ services:
       retries: 15
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    ports: ["${REDIS_PORT:-6379}:6379"]
   api:
     build: { context: ., dockerfile: docker/api.Dockerfile }
+    ports: ["${API_PORT:-8000}:8000"]
     environment:
       MONGO_URL: mongodb://mongo:27017/schoolhub
       REDIS_URL: redis://redis:6379/0
@@ -30,7 +31,7 @@ services:
     depends_on: [api]
   frontend:
     build: { context: ., dockerfile: docker/frontend.Dockerfile }
-    ports: ["80:80"]
+    ports: ["${FRONTEND_PORT:-80}:80"]
     depends_on: [api]
 volumes:
   mongodata:
