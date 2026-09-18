@@ -19,6 +19,15 @@ async def by_login(login: str) -> User | None:
     return await User.find_one(Eq(User.login, login))
 
 
+async def ensure_admin(*, login: str, password: str, full_name: str) -> None:
+    """Дефолтный админ из .env. Создаётся один раз, пароль сразу постоянный."""
+    if not password or await by_login(login):
+        return
+    u = User(login=login, full_name=full_name, role="admin",
+             password_hash=hash_password(password), password_temp=False)
+    await u.insert()
+
+
 async def by_id(user_id: str) -> User | None:
     """id приходит из JWT (sub) или из Redis — может быть любым мусором, не кидаем исключение."""
     try:

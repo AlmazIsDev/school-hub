@@ -11,6 +11,11 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         await init_mongo()
+        from .core.config import settings
+        from .modules.users import service
+        await service.ensure_admin(
+            login=settings.admin_login, password=settings.admin_password,
+            full_name=settings.admin_name)
         yield
 
     app = FastAPI(title="School Hub", lifespan=lifespan)

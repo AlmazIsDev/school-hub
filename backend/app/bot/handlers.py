@@ -3,6 +3,20 @@ from . import codes
 
 
 def register(dp):
+    @dp.on(r"^/?(?:help|помощь|команды)$")
+    async def help(event, vk):
+        await vk.call(
+            "messages.send",
+            peer_id=event["peer_id"],
+            random_id=0,
+            message="Команды:\n"
+            "старт — начать работу\n"
+            "код <6 цифр> — привязать аккаунт с сайта\n"
+            "help — этот список\n\n"
+            "Код для привязки берётся в профиле на сайте. "
+            "По мере добавления модулей здесь появятся опросы и остальные команды.",
+        )
+
     @dp.on(r"^старт$")
     async def start(event, vk):
         await vk.call(
