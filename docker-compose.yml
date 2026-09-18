@@ -26,6 +26,7 @@ services:
     environment:
       MONGO_URL: mongodb://mongo:27017/schoolhub
       REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?}
       VK_TOKEN: ${VK_TOKEN:-}
       VK_GROUP_ID: ${VK_GROUP_ID:-0}
     depends_on: [api]
