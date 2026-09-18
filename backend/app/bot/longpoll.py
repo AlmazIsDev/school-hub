@@ -45,6 +45,8 @@ async def run_forever(client: VKClient, dp):
                                     "text": msg["text"],
                                     "vk_user_id": msg["from_id"],
                                     "peer_id": msg["peer_id"],
+                                    # VK присылает payload строкой JSON — кнопки клавиатуры
+                                    "payload": msg.get("payload"),
                                     "vk": client,
                                 }
                             )
