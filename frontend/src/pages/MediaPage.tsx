@@ -163,9 +163,9 @@ export default function MediaPage() {
           title: editTitle,
           body: editBody,
           assignee_id: editAssignee,
-          ...(editPublishAt
-            ? { publish_at: new Date(editPublishAt + "T12:00:00").toISOString() }
-            : {}),
+          publish_at: editPublishAt
+            ? new Date(editPublishAt + "T12:00:00").toISOString()
+            : null,
         }),
       });
       setEditing(null);
@@ -209,7 +209,7 @@ export default function MediaPage() {
           </Text>
           <Group gap={4} wrap="nowrap">
             {col !== "published" && (
-              <Button size="compact-xs" variant="default" aria-label="Вперёд" disabled={busy}
+              <Button size="compact-xs" variant="default" aria-label={`Перевести «${p.title}» далее`} disabled={busy}
                 onClick={() => movePost(p)}>→</Button>
             )}
           </Group>
