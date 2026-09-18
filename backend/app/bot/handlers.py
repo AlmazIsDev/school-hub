@@ -1,5 +1,5 @@
 from ..modules.users import service
-from . import codes
+from . import codes, pulse_bot
 
 
 def register(dp):
@@ -55,3 +55,9 @@ def register(dp):
             random_id=0,
             message=f"Готово, {u.full_name}! Аккаунт привязан.",
         )
+
+    # catch-all последним: кнопки опроса (payload) и свободные ответы.
+    # Если сценарий опроса не наш — pulse_bot.handle_message молча выйдет.
+    @dp.on(r"")
+    async def poll_step(event, vk):
+        await pulse_bot.handle_message(event, vk)
