@@ -3,6 +3,18 @@ from datetime import date as date_type
 from pydantic import BaseModel, field_validator
 
 
+def _check_weekday(v):
+    if not 1 <= v <= 7:
+        raise ValueError("weekday must be 1..7")
+    return v
+
+
+def _check_slot(v):
+    if not 1 <= v <= 8:
+        raise ValueError("slot must be 1..8")
+    return v
+
+
 class ZoneIn(BaseModel):
     name: str
 
@@ -11,6 +23,9 @@ class SlotIn(BaseModel):
     weekday: int
     slot: int
     user_id: str
+
+    _weekday = field_validator("weekday")(_check_weekday)
+    _slot = field_validator("slot")(_check_slot)
 
 
 class ScheduleIn(BaseModel):
@@ -32,19 +47,8 @@ class CompletionIn(BaseModel):
     date: str  # YYYY-MM-DD
     user_id: str | None = None  # только teacher/admin
 
-    @field_validator("weekday")
-    @classmethod
-    def weekday_range(cls, v):
-        if not 1 <= v <= 7:
-            raise ValueError("weekday must be 1..7")
-        return v
-
-    @field_validator("slot")
-    @classmethod
-    def slot_range(cls, v):
-        if not 1 <= v <= 8:
-            raise ValueError("slot must be 1..8")
-        return v
+    _weekday = field_validator("weekday")(_check_weekday)
+    _slot = field_validator("slot")(_check_slot)
 
     @field_validator("date")
     @classmethod

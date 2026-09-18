@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pymongo.errors import DuplicateKeyError
 
 from ...core.security import get_current_user, require_role
 from ..users.models import User
@@ -51,6 +52,8 @@ async def delete_zone(zone_id: str, user: dict = Depends(require_role("teacher",
     zone = await DutyZone.get(_get(zone_id))
     if not zone:
         raise HTTPException(404, "Зона не найдена")
+    if await DutySchedule.find_one(DutySchedule.zone_id == zone_id):
+        raise HTTPException(409, "Сначала удали графики")
     await zone.delete()
     return {"ok": True}
 
@@ -73,6 +76,12 @@ async def create_schedule(body: schemas.ScheduleIn, user: dict = Depends(require
         if not u or u.role != "student":
             raise HTTPException(422, f"user_id {uid} не является учеником")
 
+    # дубликат слота (weekday, slot, user_id) в одном графике — ошибка
+    seen = {(s.weekday, s.slot, s.user_id) for s in body.week_pattern}
+    if len(seen) != len(body.week_pattern):
+        raise HTTPException(422, "Дубликат слота в week_pattern")
+
+    # изменения графика = delete + create, PUT для schedules сознательно не делаем (YAGNI)
     schedule = DutySchedule(teacher_id=user["id"], zone_id=body.zone_id,
                             week_pattern=[EmbeddedSlot(**s.model_dump()) for s in body.week_pattern])
     await schedule.insert()
@@ -101,6 +110,7 @@ async def delete_schedule(schedule_id: str, user: dict = Depends(get_current_use
         raise HTTPException(404, "График не найден")
     if user["role"] != "admin" and schedule.teacher_id != user["id"]:
         raise HTTPException(403, "Недостаточно прав")
+    # отметки (completions) при удалении графика не трогаем — история дежурств остаётся
     await schedule.delete()
     return {"ok": True}
 
@@ -132,7 +142,12 @@ async def create_completion(body: schemas.CompletionIn, user: dict = Depends(get
         raise HTTPException(409, "Отметка за эту дату уже есть")
     completion = DutyCompletion(schedule_id=body.schedule_id, weekday=body.weekday,
                                 slot=body.slot, user_id=target_id, date=date)
-    await completion.insert()
+    try:
+        await completion.insert()
+    except DuplicateKeyError:
+        # двойной клик / параллельные POST — compound unique index ловит то,
+        # что find_one выше не успел
+        raise HTTPException(409, "Отметка за эту дату уже есть")
     return {"id": str(completion.id), "schedule_id": completion.schedule_id,
             "weekday": completion.weekday, "slot": completion.slot,
             "user_id": completion.user_id, "date": body.date,

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from beanie import Document
 from pydantic import BaseModel, Field
+from pymongo import IndexModel
 
 
 def _now() -> datetime:
@@ -42,3 +43,8 @@ class DutyCompletion(Document):
 
     class Settings:
         name = "duty_completions"
+        # защита от гонки двойного POST: дубль отметки невозможен на уровне БД
+        indexes = [
+            IndexModel([("schedule_id", 1), ("weekday", 1), ("slot", 1),
+                        ("user_id", 1), ("date", 1)], unique=True),
+        ]

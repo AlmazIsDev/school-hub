@@ -82,14 +82,27 @@ async def test_schedule_validation(client, tokens):
     zone_id = (await client.post("/api/duty/zones", json={"name": "Z"}, headers=_h(tokens["teacher"]))).json()["id"]
     teacher_h = _h(tokens["teacher"])
     other = await User.find_one(User.role == "teacher")
+    student = await User.find_one(User.role == "student")
+    sid = str(student.id)
 
-    # weekday вне 1..7
+    # weekday вне 1..7 — проверяется именно валидация диапазона, id валидный
     r = await client.post("/api/duty/schedules", headers=teacher_h, json={
-        "zone_id": zone_id, "week_pattern": [{"weekday": 8, "slot": 1, "user_id": "x"}]})
+        "zone_id": zone_id, "week_pattern": [{"weekday": 8, "slot": 1, "user_id": sid}]})
+    assert r.status_code == 422
+    r = await client.post("/api/duty/schedules", headers=teacher_h, json={
+        "zone_id": zone_id, "week_pattern": [{"weekday": 0, "slot": 1, "user_id": sid}]})
     assert r.status_code == 422
     # slot вне 1..8
     r = await client.post("/api/duty/schedules", headers=teacher_h, json={
-        "zone_id": zone_id, "week_pattern": [{"weekday": 1, "slot": 0, "user_id": "x"}]})
+        "zone_id": zone_id, "week_pattern": [{"weekday": 1, "slot": 0, "user_id": sid}]})
+    assert r.status_code == 422
+    r = await client.post("/api/duty/schedules", headers=teacher_h, json={
+        "zone_id": zone_id, "week_pattern": [{"weekday": 1, "slot": 9, "user_id": sid}]})
+    assert r.status_code == 422
+    # дубликат слота
+    slot = {"weekday": 1, "slot": 1, "user_id": sid}
+    r = await client.post("/api/duty/schedules", headers=teacher_h, json={
+        "zone_id": zone_id, "week_pattern": [slot, dict(slot)]})
     assert r.status_code == 422
     # пустой pattern
     r = await client.post("/api/duty/schedules", headers=teacher_h,
@@ -143,6 +156,17 @@ async def test_schedule_read_and_delete(client, tokens):
     assert r.status_code == 200
     r = await client.delete(f"/api/duty/schedules/{sched_id}", headers=_h(tokens["teacher"]))
     assert r.status_code == 404
+
+    # зону с живым графиком удалить нельзя
+    r = await client.post("/api/duty/schedules", headers=_h(tokens["teacher"]), json={
+        "zone_id": zone_id, "week_pattern": [{"weekday": 1, "slot": 1, "user_id": s1}]})
+    sched_id = r.json()["id"]
+    r = await client.delete(f"/api/duty/zones/{zone_id}", headers=_h(tokens["teacher"]))
+    assert r.status_code == 409
+    r = await client.delete(f"/api/duty/schedules/{sched_id}", headers=_h(tokens["teacher"]))
+    assert r.status_code == 200
+    r = await client.delete(f"/api/duty/zones/{zone_id}", headers=_h(tokens["teacher"]))
+    assert r.status_code == 200
 
 
 # ---------- completions ----------
