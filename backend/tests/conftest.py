@@ -11,12 +11,13 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import create_app
 from app.modules.users.models import SchoolClass, User
+from app.modules.media.models import Post, PostIdea
 
 
 @pytest_asyncio.fixture
 async def db():
     client = AsyncMongoMockClient()
-    await init_beanie(client.get_database("test"), document_models=[User, SchoolClass])
+    await init_beanie(client.get_database("test"), document_models=[User, SchoolClass, Post, PostIdea])
     yield
 
 

@@ -42,6 +42,8 @@ def create_app() -> FastAPI:
     app.include_router(navigator_router)
     from .modules.builder.router import router as builder_router
     app.include_router(builder_router)
+    from .modules.media.router import router as media_router
+    app.include_router(media_router)
 
     @app.get("/healthz")
     async def healthz():
