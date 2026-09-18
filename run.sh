@@ -10,6 +10,9 @@ if [ -f .env ]; then
 fi
 API_PORT="${API_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+# В .env URL под docker-сеть (хосты mongo/redis); локальным процессам нужны localhost
+export MONGO_URL="mongodb://localhost:${MONGO_PORT:-27017}/schoolhub"
+export REDIS_URL="redis://localhost:${REDIS_PORT:-6379}/0"
 
 docker compose up -d mongo redis
 

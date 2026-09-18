@@ -14,9 +14,12 @@ services:
     build: { context: ., dockerfile: docker/api.Dockerfile }
     ports: ["${API_PORT:-8000}:8000"]
     environment:
-      MONGO_URL: mongodb://mongo:27017/schoolhub
-      REDIS_URL: redis://redis:6379/0
+      MONGO_URL: ${MONGO_URL:-mongodb://mongo:27017/schoolhub}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       JWT_SECRET: ${JWT_SECRET:?}
+      JWT_ALG: ${JWT_ALG:-HS256}
+      ACCESS_TTL_MIN: ${ACCESS_TTL_MIN:-15}
+      REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-7}
     depends_on:
       mongo: { condition: service_healthy }
       redis: { condition: service_started }
@@ -24,9 +27,12 @@ services:
     build: { context: ., dockerfile: docker/api.Dockerfile }
     command: ["python", "-m", "app.bot"]
     environment:
-      MONGO_URL: mongodb://mongo:27017/schoolhub
-      REDIS_URL: redis://redis:6379/0
+      MONGO_URL: ${MONGO_URL:-mongodb://mongo:27017/schoolhub}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       JWT_SECRET: ${JWT_SECRET:?}
+      JWT_ALG: ${JWT_ALG:-HS256}
+      ACCESS_TTL_MIN: ${ACCESS_TTL_MIN:-15}
+      REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-7}
       VK_TOKEN: ${VK_TOKEN:-}
       VK_GROUP_ID: ${VK_GROUP_ID:-0}
     depends_on: [api]
