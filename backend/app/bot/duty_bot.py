@@ -142,7 +142,7 @@ async def handle_message(event, vk, now: datetime | None = None):
 
 async def duty_tick(now: datetime, vk):
     """Напоминания о слотах сегодня: за 30 мин (окно 25–35) и в начале
-    (окно 0–5). Антидубль — Redis SET NX на 12h."""
+    (окно 0–5). Антидубль — Redis-ключ на 12h (get → отправка → set)."""
     loc = _local(now)
     today_wd = loc.isoweekday()
     date = loc.date().isoformat()
