@@ -17,6 +17,7 @@ async def init_mongo() -> None:
     from ..modules.pulse.models import Poll, PollAnswer  # noqa: PLC0415
     from ..modules.bridge.models import (Ban, HelpRequest, HelperTopic,  # noqa: PLC0415
                                          PairMessage, Report, StopWord, TutorPair)
+    from ..modules.duty.models import DutyCompletion, DutySchedule, DutyZone  # noqa: PLC0415
     from ..modules.users.models import SchoolClass, User  # noqa: PLC0415 — циклический импорт на уровне модуля
 
     client = AsyncIOMotorClient(settings.mongo_url, serverSelectionTimeoutMS=5000, tz_aware=True)
@@ -31,4 +32,5 @@ async def init_mongo() -> None:
             await asyncio.sleep(5)
     await init_beanie(client.get_default_database(), document_models=[
         User, SchoolClass, Poll, PollAnswer,
-        HelperTopic, HelpRequest, TutorPair, PairMessage, Report, Ban, StopWord])
+        HelperTopic, HelpRequest, TutorPair, PairMessage, Report, Ban, StopWord,
+        DutyZone, DutySchedule, DutyCompletion])

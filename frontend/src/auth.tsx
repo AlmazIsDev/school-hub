@@ -3,7 +3,7 @@ import { apiFetch, getTokens, setTokens, tokenPayload, type Tokens } from "./api
 
 type AuthState = {
   /** id и роль из access-токена; null если не залогинен */
-  user: { id: number; role: string } | null;
+  user: { id: string; role: string } | null;
   mustChangePassword: boolean;
   login: (login: string, password: string) => Promise<void>;
   logout: () => void;
@@ -21,12 +21,12 @@ function readMustChange(): boolean {
   return getTokens() !== null && localStorage.getItem("must_change_password") === "1";
 }
 
-function readUser(): { id: number; role: string } | null {
+function readUser(): { id: string; role: string } | null {
   const t = getTokens();
   if (!t) return null;
   try {
     const p = tokenPayload(t.access);
-    return { id: Number(p.sub), role: p.role };
+    return { id: p.sub, role: p.role };  // sub — строковый ObjectId
   } catch {
     setTokens(null);
     return null;
