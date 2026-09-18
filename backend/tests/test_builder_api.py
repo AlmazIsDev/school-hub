@@ -242,3 +242,37 @@ def test_diamond_no_false_positive():
     blocks[0] = {"id": "q1", "type": "branch", "condition": {"answer": "1"},
                  "then": "a", "else": "b"}
     assert validate_structure(QuestStructure(blocks=blocks)) == []
+
+
+async def test_stats_funnel(client, env):
+    qid = (await client.post("/api/builder/quests", json=_quest_body(env),
+                             headers=_h(env["teacher"]))).json()["id"]
+    from app.modules.builder.models import QuestRun
+    from datetime import datetime, timezone
+    # прогон 1: дошёл до конца (q1, q2, e1)
+    await QuestRun(quest_id=qid, user_id="s1", finished=True, score=10,
+                   trace=[{"block_id": "q1", "value": "а"},
+                          {"block_id": "q2", "value": "а"},
+                          {"block_id": "e1", "value": None}],
+                   started_at=datetime.now(timezone.utc),
+                   finished_at=datetime.now(timezone.utc)).insert()
+    # прогон 2: бросил после q1
+    await QuestRun(quest_id=qid, user_id="s2", finished=False, score=0,
+                   trace=[{"block_id": "q1", "value": "б"}],
+                   started_at=datetime.now(timezone.utc)).insert()
+
+    r = await client.get(f"/api/builder/quests/{qid}/stats", headers=_h(env["teacher"]))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["runs"] == 2
+    assert data["finished"] == 1
+    assert data["avg_score"] == 10
+    funnel = {f["block_id"]: f["reached"] for f in data["funnel"]}
+    assert funnel == {"q1": 2, "q2": 1, "h1": 0, "e1": 1}
+
+    # чужому учителю нельзя, студенту нельзя
+    r = await client.get(f"/api/builder/quests/{qid}/stats",
+                         headers=_h(await _mk_user("t2", "teacher")))
+    assert r.status_code == 403
+    r = await client.get(f"/api/builder/quests/{qid}/stats", headers=_h(env["student"]))
+    assert r.status_code == 403
