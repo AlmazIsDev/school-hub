@@ -110,6 +110,8 @@ async def send_block(vk, peer_id: int, quest: Quest, run: QuestRun,
         run.finished = True
         run.score = b["score"]
         run.finished_at = now or datetime.now(timezone.utc)
+        # end попадает в trace — иначе воронка статистики покажет на финале ноль
+        run.trace.append({"block_id": block_id, "value": None})
         await run.save()
         await _r().delete(_state_key(peer_id))
         await _send(vk, peer_id, FINISHED.format(score=run.score))

@@ -159,7 +159,8 @@ async def test_linear_flow(db, fake_redis, vk):
     assert run.finished_at.strftime("%Y-%m-%dT%H:%M") == NOW.strftime("%Y-%m-%dT%H:%M")
     assert run.user_id == str(u.id) and run.quest_id == str(q.id)
     assert run.trace == [{"block_id": "q1", "value": "Париж"},
-                         {"block_id": "h1", "value": None}]
+                         {"block_id": "h1", "value": None},
+                         {"block_id": "e1", "value": None}]
     assert "queststate:100" not in fake_redis.data
     assert any(json.loads(m)["type"] == "quest.finished" for _, m in fake_redis.published)
 
@@ -264,7 +265,7 @@ async def test_double_next_ignored(db, fake_redis, vk):
         {"vk_user_id": 100, "peer_id": 100, "payload": nxt}, vk, now=NOW)  # дубль
     assert len(vk.calls) == n  # молча, run не изменился
     run = (await QuestRun.find_all().to_list())[0]
-    assert run.finished and len(run.trace) == 2
+    assert run.finished and len(run.trace) == 3  # q1 + h1 + e1
 
 
 async def test_broken_state_json_silent(db, fake_redis, vk):
