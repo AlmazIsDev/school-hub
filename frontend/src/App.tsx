@@ -7,6 +7,7 @@ import Profile from "./pages/Profile";
 import PollsPage from "./pages/PollsPage";
 import PollResultsPage from "./pages/PollResultsPage";
 import BridgePage from "./pages/BridgePage";
+import DutyPage from "./pages/DutyPage";
 
 function Guard({ children }: { children: React.ReactNode }) {
   const { user, mustChangePassword } = useAuth();
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/polls" element={<PollsPage />} />
         <Route path="/polls/:id/results" element={<PollResultsPage />} />
         <Route path="/bridge" element={<BridgePage />} />
+        <Route path="/duty" element={<DutyPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

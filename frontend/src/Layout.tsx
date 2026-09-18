@@ -34,6 +34,11 @@ export default function Layout() {
           active={location.pathname === "/polls"}
           onClick={() => { navigate("/polls"); toggle(); }}
         />
+        <NavLink
+          label="Дежурства"
+          active={location.pathname === "/duty"}
+          onClick={() => { navigate("/duty"); toggle(); }}
+        />
         {canModerate && (
           <NavLink
             label="Помощь"
