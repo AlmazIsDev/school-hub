@@ -192,3 +192,15 @@ async def test_helpers_rating(client, db):
     assert row["topics"] == ["алгебра", "геометрия"]
     assert row["pairs"] == 3  # только закрытые
     assert row["avg_score"] == 4.0
+
+
+async def test_resolve_invalid_action_422(client, db):
+    th = _h(await _mk_user("t3", "teacher"))
+    rid = await _mk_report("u" * 24)
+    r = await client.post(f"/api/bridge/reports/{rid}/resolve",
+                          json={"action": "banana"}, headers=th)
+    assert r.status_code == 422
+
+    r = await client.post(f"/api/bridge/reports/{rid}/resolve",
+                          json={"action": "ban_days", "days": 99999}, headers=th)
+    assert r.status_code == 422

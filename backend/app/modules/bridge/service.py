@@ -5,7 +5,9 @@ from .models import Ban, StopWord, TutorPair
 
 
 async def check_text(text: str) -> bool:
-    """True = текст чистый. Substring по стоп-словам из БД — без морфологии."""
+    """True = текст чистый. Substring по стоп-словам из БД — без морфологии.
+    ponytail: substring ловит «мат» в «математике» — держи список от коротких корней,
+    по словам/морфологии если ложные срабатывания станут реальной проблемой."""
     low = text.lower()
     words = [w.word for w in await StopWord.find_all().to_list()]
     return not any(w in low for w in words)

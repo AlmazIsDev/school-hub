@@ -19,7 +19,7 @@ async def init_mongo() -> None:
                                          PairMessage, Report, StopWord, TutorPair)
     from ..modules.users.models import SchoolClass, User  # noqa: PLC0415 — циклический импорт на уровне модуля
 
-    client = AsyncIOMotorClient(settings.mongo_url, serverSelectionTimeoutMS=5000)
+    client = AsyncIOMotorClient(settings.mongo_url, serverSelectionTimeoutMS=5000, tz_aware=True)
     for attempt in range(1, 31):  # ~2.5 мин максимум
         try:
             await client.admin.command("ping")
