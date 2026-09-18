@@ -132,8 +132,15 @@ async def get_plan(plan_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(404, "План не найден")
     content = await grid_out.read()
     content_type = (grid_out.metadata or {}).get("content_type", "application/octet-stream")
-    return Response(content=content, media_type=content_type,
-                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    # attachment + sandbox: SVG может содержать script — не даём ему исполниться в origin
+    ext = content_type.split("/")[-1].replace("svg+xml", "svg").replace("jpeg", "jpg")
+    return Response(
+        content=content, media_type=content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="plan-{plan_id}.{ext}"',
+            "Content-Security-Policy": "sandbox",
+            "Cache-Control": "public, max-age=31536000, immutable",
+        })
 
 
 # ---------- rooms ----------
