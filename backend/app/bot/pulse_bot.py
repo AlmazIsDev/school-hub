@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import random
 
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -45,13 +46,20 @@ def build_keyboard(poll_id: str, idx: int) -> str:
 
 
 async def _send(vk, peer_id: int, message: str, keyboard: str | None = None):
-    params = {"peer_id": peer_id, "random_id": 0, "message": message}
+    # random_id=0 VK не дедуплицирует — генерим случайный
+    params = {"peer_id": peer_id, "random_id": random.randrange(2**31), "message": message}
     if keyboard:
         params["keyboard"] = keyboard
     await vk.call("messages.send", **params)
 
 
 async def send_question(vk, peer_id: int, poll: Poll, idx: int):
+    # state мог указывать за пределы вопросов (кривой/протухший state) —
+    # трактуем как закрытый опрос; в боте peer_id == vk_id
+    if idx >= len(poll.questions):
+        await _r().delete(_state_key(peer_id))
+        await _send(vk, peer_id, CLOSED)
+        return
     q = poll.questions[idx]
     message = f"{poll.title}\nВопрос {idx + 1}/{len(poll.questions)}: {q.text}"
     kb = build_keyboard(str(poll.id), idx) if q.type == "scale1_5" else None
@@ -73,7 +81,7 @@ async def on_published(payload: dict, vk):
         poll = await Poll.get(ObjectId(payload.get("poll_id")))
     except (InvalidId, TypeError):
         poll = None
-    if not poll or poll.status != "active":
+    if not poll or poll.status != "active" or poll.notified:
         return
     students = await User.find(
         User.role == "student", User.class_id == poll.class_id, User.vk_id != None  # noqa: E711
@@ -83,6 +91,16 @@ async def on_published(payload: dict, vk):
             await start_poll(vk, u.vk_id, poll)
         except Exception:
             log.exception("рассылка опроса %s не дошла до vk_id=%s", poll.id, u.vk_id)
+    poll.notified = True
+    await poll.save()
+
+
+async def catch_up_unnotified(vk):
+    """Догонялка при старте бота: события poll.published, потерянные
+    пока бот был выключен (pub/sub без персистентности)."""
+    polls = await Poll.find(Poll.status == "active", Poll.notified == False).to_list()  # noqa: E712
+    for poll in polls:
+        await on_published({"poll_id": str(poll.id)}, vk)
 
 
 async def listen_events(vk):
@@ -130,8 +148,11 @@ async def handle_message(event: dict, vk):
             return
         state = json.loads(state_raw)
         if state.get("poll_id") != p["poll"] or state.get("idx") != p["q"]:
-            return  # кнопка от старого вопроса — игнор
-        poll_id, idx, value = p["poll"], int(p["q"]), str(p["v"])
+            return  # stale-кнопка от старого вопроса — молча игнор
+        try:
+            poll_id, idx, value = p["poll"], int(p["q"]), str(p["v"])
+        except (KeyError, TypeError, ValueError):
+            return  # кривой payload — молча игнор
     else:
         if not state_raw:
             return
@@ -145,19 +166,29 @@ async def handle_message(event: dict, vk):
         poll = await Poll.get(ObjectId(poll_id))
     except (InvalidId, TypeError):
         poll = None
-    if not poll or poll.status != "active":
+    if not poll or poll.status != "active" or idx >= len(poll.questions):
         await r.delete(_state_key(vk_id))
         await _send(vk, event["peer_id"], CLOSED)
         return
 
     # Дедуп — один раз на опрос, при ответе на первый вопрос. Дальше идём по
-    # state (индекс в нём гарантирует, что вопрос уже отвечен или ещё не начат)
+    # state (индекс в нём гарантирует, что вопрос уже отвечен или ещё не начат).
+    # ВАЖНО для аналитики (T4): state мог истечь на середине — частичные ответы
+    # попадут в базу. Полнота ответа определяется наличием ответа на последний
+    # вопрос — учесть при агрегации.
     if idx == 0 and not await r.set(f"answered:{poll_id}:{vk_id}", "1", nx=True, ex=DEDUP_TTL):
         await r.delete(_state_key(vk_id))
         await _send(vk, event["peer_id"], ALREADY)
         return
 
-    await PollAnswer(poll_id=poll_id, question_idx=idx, value=value).insert()
+    try:
+        await PollAnswer(poll_id=poll_id, question_idx=idx, value=value).insert()
+    except Exception:
+        # иначе дедуп-ключ уже съел ответ: откатываем, чтобы юзер мог повторить
+        log.exception("не сохранили ответ poll=%s vk=%s", poll_id, vk_id)
+        await r.delete(f"answered:{poll_id}:{vk_id}", _state_key(vk_id))
+        await _send(vk, event["peer_id"], "Ошибка, попробуйте ещё раз.")
+        return
 
     nidx = idx + 1
     if nidx >= len(poll.questions):

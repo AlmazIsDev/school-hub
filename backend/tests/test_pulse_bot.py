@@ -165,6 +165,66 @@ async def test_text_without_state_ignored(db, fake_redis, vk):
     assert vk.calls == []
 
 
+async def test_insert_failure_rolls_back_dedup_and_state(db, fake_redis, vk, monkeypatch):
+    c = await _insert_class()
+    poll = await _mk_poll(str(c.id), [{"text": "Шкала?", "type": "scale1_5"}])
+    await _mk_student(vk_id=100, class_id=str(c.id))
+    await pulse_bot.on_published({"poll_id": str(poll.id)}, vk)
+    payload = _btn_payload(vk.calls[0])
+
+    class Boom:
+        def __init__(self, **kw):
+            pass
+
+        async def insert(self):
+            raise RuntimeError("db down")
+
+    monkeypatch.setattr(pulse_bot, "PollAnswer", Boom)
+    vk.calls.clear()
+    await pulse_bot.handle_message({"vk_user_id": 100, "peer_id": 100,
+                                    "payload": payload, "text": "5"}, vk)
+    # дедуп и state откатлены — юзер не заблокирован, может повторить
+    assert "answered:%s:100" % poll.id not in fake_redis.data
+    assert "pollstate:100" not in fake_redis.data
+    assert any("Ошибка, попробуйте ещё раз" in c2["message"] for c2 in vk.calls)
+
+
+async def test_stale_button_ignored(db, fake_redis, vk):
+    c = await _insert_class()
+    poll = await _mk_poll(str(c.id), [
+        {"text": "Шкала?", "type": "scale1_5"},
+        {"text": "Текст?", "type": "free_text"},
+    ])
+    await _mk_student(vk_id=100, class_id=str(c.id))
+    await pulse_bot.on_published({"poll_id": str(poll.id)}, vk)
+    payload = _btn_payload(vk.calls[0])  # q=0
+    # отвечаем на q0, state переехал на idx=1
+    await pulse_bot.handle_message({"vk_user_id": 100, "peer_id": 100,
+                                    "payload": payload, "text": "4"}, vk)
+    vk.calls.clear()
+    # повторное нажатие кнопки q0 при state idx=1 — молча, без ответа и записи
+    await pulse_bot.handle_message({"vk_user_id": 100, "peer_id": 100,
+                                    "payload": payload, "text": "4"}, vk)
+    assert vk.calls == []
+    assert len(await PollAnswer.find_all().to_list()) == 1
+
+
+async def test_catch_up_unnotified(db, fake_redis, vk):
+    c = await _insert_class()
+    poll = await _mk_poll(str(c.id), [{"text": "Шкала?", "type": "scale1_5"}])
+    await _mk_student(vk_id=100, class_id=str(c.id))
+
+    await pulse_bot.catch_up_unnotified(vk)
+    assert [c2["peer_id"] for c2 in vk.calls] == [100]
+
+    fresh = await Poll.get(poll.id)
+    assert fresh.notified is True
+    # повторный вызов не рассылает второй раз
+    vk.calls.clear()
+    await pulse_bot.catch_up_unnotified(vk)
+    assert vk.calls == []
+
+
 async def test_poll_closed_midway(db, fake_redis, vk):
     c = await _insert_class()
     poll = await _mk_poll(str(c.id), [{"text": "Шкала?", "type": "scale1_5"}])
