@@ -168,10 +168,10 @@ export default function PollsPage() {
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {compareResult.a.avgs.map((avgA, i) => (
+          {Array.from({ length: Math.max(compareResult.a.avgs.length, compareResult.b.avgs.length) }, (_, i) => (
             <Table.Tr key={i}>
               <Table.Td>Вопрос {i + 1}</Table.Td>
-              <Table.Td>{avgA ?? "—"}</Table.Td>
+              <Table.Td>{compareResult.a.avgs[i] ?? "—"}</Table.Td>
               <Table.Td>{compareResult!.b.avgs[i] ?? "—"}</Table.Td>
             </Table.Tr>
           ))}
@@ -276,7 +276,7 @@ export default function PollsPage() {
                 label="Опрос A"
                 data={comparableTopics.flatMap(([topic, ps]) => ps.map((p) => ({ value: p.id, label: `${topic} — ${p.title}` })))}
                 value={compareA}
-                onChange={(v) => setCompareA(v ?? "")}
+                onChange={(v) => { setCompareA(v ?? ""); setCompareB(""); setCompareResult(null); }}
                 w={320}
               />
               <Select

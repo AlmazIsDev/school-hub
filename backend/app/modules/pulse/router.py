@@ -179,6 +179,8 @@ async def weak_topics(threshold: float = 3.5, user: dict = Depends(require_role(
 
 @router.get("/compare")
 async def compare_polls(a: str, b: str, user: dict = Depends(require_role("teacher", "admin"))):
+    if a == b:
+        raise HTTPException(400, "Нужны два разных опроса")
     poll_a, poll_b = await get_poll(a), await get_poll(b)
     for p in (poll_a, poll_b):
         if user["role"] != "admin" and p.teacher_id != user["id"]:
