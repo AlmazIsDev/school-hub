@@ -38,6 +38,7 @@ async def init_mongo() -> None:
                                          PairMessage, Report, StopWord, TutorPair)
     from ..modules.duty.models import DutyCompletion, DutySchedule, DutyZone  # noqa: PLC0415
     from ..modules.navigator.models import Building, Floor, Room  # noqa: PLC0415
+    from ..modules.builder.models import Quest, QuestRun  # noqa: PLC0415
     from ..modules.users.models import SchoolClass, User  # noqa: PLC0415 — циклический импорт на уровне модуля
 
     client = get_motor_client()
@@ -54,4 +55,4 @@ async def init_mongo() -> None:
         User, SchoolClass, Poll, PollAnswer,
         HelperTopic, HelpRequest, TutorPair, PairMessage, Report, Ban, StopWord,
         DutyZone, DutySchedule, DutyCompletion,
-        Building, Floor, Room])
+        Building, Floor, Room, Quest, QuestRun])

@@ -67,6 +67,8 @@ async def send_question(vk, peer_id: int, poll: Poll, idx: int):
 
 
 async def start_poll(vk, vk_id: int, poll: Poll):
+    # чужой активный сценарий гасим — кнопки не должны стартовать два сценария сразу
+    await _r().delete(f"queststate:{vk_id}", f"bridgestate:{vk_id}")
     await _r().set(
         _state_key(vk_id),
         json.dumps({"poll_id": str(poll.id), "idx": 0}),

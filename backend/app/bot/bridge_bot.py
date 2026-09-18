@@ -44,6 +44,8 @@ def _state_key(vk_id: int) -> str:
 
 
 async def _set_state(vk_id: int, state: dict):
+    # чужой активный сценарий гасим — кнопки не должны стартовать два сценария сразу
+    await _r().delete(f"queststate:{vk_id}", f"pollstate:{vk_id}")
     await _r().set(_state_key(vk_id), json.dumps(state, ensure_ascii=False), ex=STATE_TTL)
 
 
