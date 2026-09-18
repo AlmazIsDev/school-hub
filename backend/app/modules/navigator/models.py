@@ -9,7 +9,7 @@ def _now() -> datetime:
 
 
 class GeoPolygon(BaseModel):
-    """GeoJSON-полигон из Leaflet Draw. Кольца не проверяем на замкнутость (T4 сам дорисует)."""
+    """GeoJSON-полигон из Leaflet Draw. Замкнутость не требуем; структура и конечность точек проверяются в schemas.valid_polygon."""
     type: str  # только "Polygon", проверяется валидатором в schemas
     coordinates: list[list[list[float]]]
 
