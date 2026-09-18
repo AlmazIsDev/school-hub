@@ -98,8 +98,9 @@ def test_validator_bad_next():
     assert any("несуществующий" in e for e in errs)
 
 
-def test_validator_two_ends():
-    # оба end достижимы: branch ведёт в e1 и e2
+def test_validator_two_ends_ok():
+    # оба end достижимы: branch ведёт в e1 и e2 — легитимный дизайн,
+    # разные score по веткам; запрещён только ноль достижимых end
     blocks = [
         {"id": "q1", "type": "question", "text": "В", "options": ["а", "б"], "next": "b2"},
         {"id": "b2", "type": "branch", "condition": {"answer": "а"},
@@ -107,9 +108,7 @@ def test_validator_two_ends():
         {"id": "e1", "type": "end", "score": 10},
         {"id": "e2", "type": "end", "score": 5},
     ]
-    errs = validate_structure(QuestStructure(blocks=blocks))
-    assert any("end" in e for e in errs)
-    assert not _valid(blocks)
+    assert _valid(blocks)
 
 
 def test_validator_then_equals_else():

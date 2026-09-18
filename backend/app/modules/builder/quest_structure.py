@@ -115,6 +115,6 @@ def validate_structure(structure: QuestStructure) -> list[str]:
         errors.append(f"недостижимые блоки: {', '.join(unreachable)}")
 
     ends = [i for i in reachable if by_id[i].type == "end"]
-    if len(ends) != 1:
-        errors.append("должен быть ровно один достижимый end, найдено: %d" % len(ends))
+    if not ends:
+        errors.append("должен быть хотя бы один достижимый end")
     return errors
