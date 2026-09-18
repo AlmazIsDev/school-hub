@@ -40,6 +40,9 @@ async def create_post(body: schemas.PostIn, user: dict = Depends(require_role("t
 
 @router.get("/posts")
 async def list_posts(status: str | None = None, user: dict = Depends(get_current_user)):
+    # ученикам доступна только опубликованная лента, редакция — весь канбан
+    if user["role"] not in ("teacher", "admin"):
+        return [_post_out(p) for p in await Post.find(Post.status == "published").to_list()]
     query = Post.find(Post.status == status) if status else Post.find_all()
     return [_post_out(p) for p in await query.to_list()]
 
@@ -59,6 +62,10 @@ async def patch_post(post_id: str, body: schemas.PostPatch,
                                      f"{' -> '.join(STATUS_CHAIN)}")
 
     for field, value in body.model_dump(exclude_unset=True, exclude={"status"}).items():
+        if field == "title":
+            value = value.strip()
+            if not value:
+                raise HTTPException(422, "Пустой заголовок")
         setattr(post, field, value)
     if body.status is not None:
         post.status = body.status
@@ -83,6 +90,8 @@ async def list_ideas(status: str | None = None,
 
 
 async def _resolve_idea(idea_id: str) -> PostIdea:
+    # ponytail: check-then-save — параллельные accept дадут два поста; лечится
+    # find_one_and_update с условием status=new, на демо-объёмах не нужно
     idea = await PostIdea.get(_oid(idea_id))
     if not idea:
         raise HTTPException(404, "Идея не найдена")
