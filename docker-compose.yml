@@ -13,6 +13,8 @@ services:
   api:
     build: { context: ., dockerfile: docker/api.Dockerfile }
     ports: ["${API_PORT:-8000}:8000"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       MONGO_URL: ${MONGO_URL:-mongodb://mongo:27017/schoolhub}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -26,6 +28,8 @@ services:
   bot:
     build: { context: ., dockerfile: docker/api.Dockerfile }
     command: ["python", "-m", "app.bot"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       MONGO_URL: ${MONGO_URL:-mongodb://mongo:27017/schoolhub}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
