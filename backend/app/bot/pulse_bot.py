@@ -120,6 +120,10 @@ async def listen_events(vk):
                     continue
                 if data.get("type") == "poll.published":
                     await on_published(data, vk)
+                elif data.get("type") == "media.published":
+                    # локальный импорт: media_bot использует _send отсюда
+                    from . import media_bot
+                    await media_bot.on_published(data, vk)
         except Exception:
             log.exception("events listener crashed, reconnect in 5s")
             await asyncio.sleep(5)
