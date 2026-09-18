@@ -11,7 +11,7 @@ from ...core.security import get_current_user, require_role
 from ..users import service as users_service
 from ...modules.users.models import SchoolClass
 from . import schemas
-from .models import EmbeddedQuestion, Poll
+from .models import EmbeddedQuestion, Poll, PollAnswer
 
 log = logging.getLogger("pulse")
 router = APIRouter(prefix="/api/pulse", tags=["pulse"])
@@ -114,3 +114,89 @@ async def get_poll_view(poll_id: str, user: dict = Depends(get_current_user)):
     elif not _can_manage(poll, user):
         raise HTTPException(403, "Не ваш опрос")
     return poll_out(poll)
+
+
+@router.get("/polls/{poll_id}/results")
+async def poll_results(poll_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    poll = await get_poll(poll_id)
+    if not _can_manage(poll, user):
+        raise HTTPException(403, "Не ваш опрос")
+    answers = await PollAnswer.find(PollAnswer.poll_id == poll_id).to_list()
+
+    # Анонимные ответы — связать их между собой нельзя, поэтому completed/started
+    # считаем как число ответов на последний / первый вопрос соответственно
+    # (нижняя граница: ученик, дошедший до последнего вопроса, мог пропустить первый).
+    last_idx = len(poll.questions) - 1
+    started = sum(1 for a in answers if a.question_idx == 0)
+    completed = sum(1 for a in answers if a.question_idx == last_idx)
+
+    questions = []
+    for idx, q in enumerate(poll.questions):
+        values = [a.value for a in answers if a.question_idx == idx]
+        if q.type == "scale1_5":
+            # считаем все значения шкалы, включая нули
+            counts = {str(v): 0 for v in range(1, 6)}
+            for v in values:
+                if v in counts:
+                    counts[v] += 1
+            questions.append({"text": q.text, "type": q.type, "answers": counts})
+        else:
+            questions.append({"text": q.text, "type": q.type, "answers": values})
+    return {
+        "poll": {"title": poll.title, "topic": poll.topic, "status": poll.status},
+        "completed": completed,
+        "started": started,
+        "questions": questions,
+    }
+
+
+@router.get("/topics")
+async def weak_topics(threshold: float = 3.5, user: dict = Depends(require_role("teacher", "admin"))):
+    if not (0 < threshold <= 5):
+        raise HTTPException(422, "threshold должен быть в (0, 5]")
+    # Только closed: средняя по активному опросу вводит в заблуждение —
+    # ответили ещё не все, да и учитель не «отработал» результат.
+    query = {"status": "closed"}
+    if user["role"] != "admin":
+        query["teacher_id"] = user["id"]
+    polls = await Poll.find(query).to_list()
+
+    out = []
+    for p in polls:
+        answers = await PollAnswer.find(PollAnswer.poll_id == str(p.id)).to_list()
+        scale_idx = {i for i, q in enumerate(p.questions) if q.type == "scale1_5"}
+        vals = [int(a.value) for a in answers
+                if a.question_idx in scale_idx and a.value.isdigit() and 1 <= int(a.value) <= 5]
+        if not vals:
+            continue  # без данных средняя бессмысленна
+        avg = sum(vals) / len(vals)
+        if avg < threshold:
+            out.append({"poll_id": str(p.id), "title": p.title, "topic": p.topic,
+                        "avg": round(avg, 2), "n_answers": len(vals)})
+    out.sort(key=lambda x: x["avg"])
+    return out
+
+
+@router.get("/compare")
+async def compare_polls(a: str, b: str, user: dict = Depends(require_role("teacher", "admin"))):
+    poll_a, poll_b = await get_poll(a), await get_poll(b)
+    for p in (poll_a, poll_b):
+        if user["role"] != "admin" and p.teacher_id != user["id"]:
+            raise HTTPException(403, "Не ваш опрос")
+        if p.status != "closed":
+            raise HTTPException(409, f"Опрос «{p.title}» не закрыт")
+    if poll_a.topic != poll_b.topic:
+        raise HTTPException(400, "Темы опросов не совпадают")
+
+    async def scale_avgs(p: Poll) -> list[float | None]:
+        answers = await PollAnswer.find(PollAnswer.poll_id == str(p.id)).to_list()
+        by_q: dict[int, list[int]] = {}
+        for ans in answers:
+            if 0 <= ans.question_idx < len(p.questions) and p.questions[ans.question_idx].type == "scale1_5" \
+                    and ans.value.isdigit() and 1 <= int(ans.value) <= 5:
+                by_q.setdefault(ans.question_idx, []).append(int(ans.value))
+        n = max((i for i, q in enumerate(p.questions) if q.type == "scale1_5"), default=-1) + 1
+        return [round(sum(v) / len(v), 2) if (v := by_q.get(i)) else None for i in range(n)]
+
+    return {"a": {"title": poll_a.title, "avgs": await scale_avgs(poll_a)},
+            "b": {"title": poll_b.title, "avgs": await scale_avgs(poll_b)}}
