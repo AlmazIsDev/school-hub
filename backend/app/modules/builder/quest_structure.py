@@ -6,7 +6,7 @@
 """
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BranchCondition(BaseModel):
@@ -18,6 +18,13 @@ class QuestionBlock(BaseModel):
     type: Literal["question"]
     text: str
     options: list[str] = Field(min_length=2, max_length=6)
+
+    @field_validator("options")
+    @classmethod
+    def options_nonempty(cls, v: list[str]) -> list[str]:
+        if any(not o.strip() for o in v):
+            raise ValueError("варианты не должны быть пустыми")
+        return v
     next: str
 
 

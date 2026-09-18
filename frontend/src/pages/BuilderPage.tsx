@@ -246,7 +246,7 @@ export default function BuilderPage() {
         </>
       );
     }
-    return <NumberInput label="Балл (score)" value={b.score} onChange={(v) => setBlock(i, { score: v })} />;
+    return <NumberInput hideControls allowDecimal={false} allowNegative={false} label="Балл (score)" value={b.score} onChange={(v) => setBlock(i, { score: v })} />;
   }
 
   function renderEditor() {

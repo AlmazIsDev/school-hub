@@ -45,7 +45,7 @@ async function unwrapError(r: Response): Promise<never> {
   const msg = Array.isArray(detail)
     ? detail.map((e: { msg?: string }) => e.msg ?? JSON.stringify(e)).join("; ")
     : detail;
-  throw new Error(msg ?? `HTTP ${r.status}`);
+  throw new Error(msg || `HTTP ${r.status}`);
 }
 
 export async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
