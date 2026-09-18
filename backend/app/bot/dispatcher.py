@@ -7,7 +7,7 @@ class Dispatcher:
         self._handlers = []
 
     def on(self, pattern: str):
-        rx = re.compile(pattern, re.IGNORECASE)
+        rx = re.compile(pattern, re.IGNORECASE | re.DOTALL)
 
         def deco(fn):
             self._handlers.append((rx, fn))

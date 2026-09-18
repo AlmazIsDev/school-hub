@@ -72,10 +72,12 @@ async def patch_post(post_id: str, body: schemas.PostPatch,
             if not value:
                 raise HTTPException(422, "Пустой заголовок")
         setattr(post, field, value)
+    published_now = False
     if body.status is not None:
+        published_now = body.status == "published" and post.status != "published"
         post.status = body.status
     await post.save()
-    if post.status == "published":
+    if published_now:
         try:
             await core_redis.get_redis().publish(
                 "events", json.dumps({"type": "media.published", "post_id": str(post.id)}))

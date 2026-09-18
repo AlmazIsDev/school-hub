@@ -37,7 +37,7 @@ async def handle_idea(event, vk):
     editors = await User.find(
         In(User.role, ["teacher", "admin"]),
         User.vk_id != None,  # noqa: E711
-    ).limit(EDITORS_LIMIT).to_list()
+    ).sort("+created_at").limit(EDITORS_LIMIT).to_list()
     message = f"Новая идея от {u.full_name}: {text}"
     for e in editors:
         try:
@@ -56,6 +56,9 @@ async def on_published(payload: dict, vk):
     except (InvalidId, TypeError):
         return
     if not post or post.status != "published":
+        return
+    # дедуп: повторное событие (pub/sub redelivery) не рассылает анонс второй раз
+    if not await _r().set(f"mediapublished:{post.id}", "1", nx=True, ex=604800):
         return
     students = await User.find(
         User.role == "student", User.vk_id != None  # noqa: E711

@@ -11,8 +11,25 @@ from app.modules.users.models import User
 
 
 class FakeRedis:
+    def __init__(self):
+        self.published = None
+        self.data: dict[str, str] = {}
+
     async def publish(self, channel, message):
         self.published = (channel, message)
+
+    async def set(self, key, value, nx=False, ex=None):
+        if nx and key in self.data:
+            return False
+        self.data[key] = value
+        return True
+
+    async def get(self, key):
+        return self.data.get(key)
+
+    async def delete(self, *keys):
+        for k in keys:
+            self.data.pop(k, None)
 
 
 class FakeVK:
@@ -113,3 +130,16 @@ async def test_published_broken_event_silent(db, fake_redis, vk):
     await media_bot.on_published({"post_id": None}, vk)
     await media_bot.on_published({}, vk)
     assert vk.calls == []
+
+
+async def test_no_reduplicate_mailing_on_event_repeat(db, fake_redis, vk):
+    """Повторное media.published на тот же post_id не рассылает анонс второй раз."""
+    await _mk_user(role="student", vk_id=100)
+    post = Post(title="Пост", body="Текст", status="published")
+    await post.insert()
+    import json as _json
+    await media_bot.on_published({"post_id": str(post.id)}, vk)
+    n = len(vk.calls)
+    assert n > 0
+    await media_bot.on_published({"post_id": str(post.id)}, vk)
+    assert len(vk.calls) == n
