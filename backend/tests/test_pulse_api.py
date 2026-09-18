@@ -87,6 +87,21 @@ async def test_teacher_create_publish_close(client, db, monkeypatch):
     assert sent == [("events", {"type": "poll.closed", "poll_id": pid})]
 
 
+async def test_publish_sends_event(client, db, monkeypatch):
+    h = {"Authorization": f"Bearer {await _mk_user('t8', 'teacher')}"}
+    pid = await _mk_poll(client, h, await _mk_class())
+    sent = []
+
+    class FakeRedis:
+        async def publish(self, channel: str, payload: str):
+            sent.append((channel, json.loads(payload)))
+
+    monkeypatch.setattr(core_redis, "get_redis", lambda: FakeRedis())
+    r = await client.post(f"/api/pulse/polls/{pid}/publish", headers=h)
+    assert r.status_code == 200
+    assert sent == [("events", {"type": "poll.published", "poll_id": pid})]
+
+
 async def test_publish_not_owner_403(client, db):
     owner = {"Authorization": f"Bearer {await _mk_user('t2', 'teacher')}"}
     other = {"Authorization": f"Bearer {await _mk_user('t3', 'teacher')}"}

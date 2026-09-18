@@ -63,6 +63,12 @@ async def publish_poll(poll_id: str, user: dict = Depends(require_role("teacher"
         raise HTTPException(409, "Опрос уже опубликован")
     poll.status = "active"
     await poll.save()
+    try:
+        await core_redis.get_redis().publish(
+            "events", json.dumps({"type": "poll.published", "poll_id": str(poll.id)}))
+    except Exception as e:
+        # как и с close: рассылка не должна ломать публикацию, бот потеряет событие
+        log.warning("poll.published не опубликован: %s", e)
     return poll_out(poll)
 
 
