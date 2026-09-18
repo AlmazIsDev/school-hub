@@ -40,7 +40,12 @@ async function rawFetch(path: string, opts: RequestInit): Promise<Response> {
 }
 
 async function unwrapError(r: Response): Promise<never> {
-  throw new Error((await r.json().catch(() => ({})))?.detail ?? `HTTP ${r.status}`);
+  const detail = (await r.json().catch(() => ({})))?.detail;
+  // pydantic 422 отдаёт detail массивом ошибок — склеиваем в читаемый список
+  const msg = Array.isArray(detail)
+    ? detail.map((e: { msg?: string }) => e.msg ?? JSON.stringify(e)).join("; ")
+    : detail;
+  throw new Error(msg ?? `HTTP ${r.status}`);
 }
 
 export async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {

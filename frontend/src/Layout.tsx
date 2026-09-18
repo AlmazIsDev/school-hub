@@ -51,6 +51,13 @@ export default function Layout() {
             onClick={() => { navigate("/bridge"); toggle(); }}
           />
         )}
+        {canModerate && (
+          <NavLink
+            label="Квесты"
+            active={location.pathname === "/builder"}
+            onClick={() => { navigate("/builder"); toggle(); }}
+          />
+        )}
       </AppShell.Navbar>
       <AppShell.Main>
         <Outlet />
