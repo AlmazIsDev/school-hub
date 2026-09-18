@@ -249,6 +249,38 @@ async def test_stale_and_broken_payloads_silent(db, fake_redis, vk):
     assert len(vk.calls) == n
 
 
+async def test_double_next_ignored(db, fake_redis, vk):
+    await _mk_student()
+    await _mk_quest()
+    await builder_bot.handle_quest({"vk_user_id": 100, "peer_id": 100}, vk)
+    await builder_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "1"}, vk)
+    await builder_bot.handle_message(
+        {"vk_user_id": 100, "peer_id": 100, "payload": json.dumps(_btn(vk, "Париж"))}, vk)
+    nxt = json.dumps(_btn(vk, "Дальше"))
+    await builder_bot.handle_message(
+        {"vk_user_id": 100, "peer_id": 100, "payload": nxt}, vk, now=NOW)  # hint → end
+    n = len(vk.calls)
+    await builder_bot.handle_message(
+        {"vk_user_id": 100, "peer_id": 100, "payload": nxt}, vk, now=NOW)  # дубль
+    assert len(vk.calls) == n  # молча, run не изменился
+    run = (await QuestRun.find_all().to_list())[0]
+    assert run.finished and len(run.trace) == 2
+
+
+async def test_broken_state_json_silent(db, fake_redis, vk):
+    await _mk_student()
+    await _mk_quest()
+    fake_redis.data["queststate:100"] = "{not json"
+    n = len(vk.calls)
+    await builder_bot.handle_message(
+        {"vk_user_id": 100, "peer_id": 100, "payload": json.dumps(
+            {"quest": "ans", "block": "q1", "value": "Париж"})}, vk)
+    await builder_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "1"}, vk)
+    await builder_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "стоп"}, vk)
+    assert len(vk.calls) == n
+    assert "queststate:100" not in fake_redis.data  # мусорный ключ вычищен
+
+
 async def test_unbound_user_silent(db, fake_redis, vk):
     await builder_bot.handle_quest({"vk_user_id": 100, "peer_id": 100}, vk)
     assert vk.calls == []

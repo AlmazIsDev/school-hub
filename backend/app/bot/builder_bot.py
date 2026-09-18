@@ -27,6 +27,12 @@ def _state_key(vk_id: int) -> str:
     return f"queststate:{vk_id}"
 
 
+def _clear_foreign_states(vk_id: int):
+    """Чужие сценарии гасим при старте своего — цифра «1» не должна
+    одновременно отвечать в опрос и выбирать квест."""
+    return _r().delete(f"pollstate:{vk_id}", f"bridgestate:{vk_id}")
+
+
 def _kb_quest(block_id: str, options: list[str]) -> str:
     rows = []
     for i in range(0, len(options), 2):
@@ -57,6 +63,7 @@ async def handle_quest(event, vk):
     u = await User.find_one(User.vk_id == vk_id)
     if not u or not u.class_id:
         return
+    await _clear_foreign_states(vk_id)
     quests = await Quest.find(Quest.status == "published",
                               Quest.class_id == str(u.class_id)).to_list()
     if not quests:
@@ -106,20 +113,23 @@ async def send_block(vk, peer_id: int, quest: Quest, run: QuestRun,
         await run.save()
         await _r().delete(_state_key(peer_id))
         await _send(vk, peer_id, FINISHED.format(score=run.score))
-        await _r().publish("events", json.dumps(
-            {"type": "quest.finished", "quest_id": str(quest.id),
-             "run_id": str(run.id), "score": run.score}))
+        try:
+            await _r().publish("events", json.dumps(
+                {"type": "quest.finished", "quest_id": str(quest.id),
+                 "run_id": str(run.id), "score": run.score}))
+        except Exception:
+            log.exception("не опубликовали quest.finished run=%s", run.id)
 
 
-async def _start_run(vk, peer_id: int, quest: Quest):
-    u = await User.find_one(User.vk_id == peer_id)
+async def _start_run(vk, vk_id: int, peer_id: int, quest: Quest):
+    u = await User.find_one(User.vk_id == vk_id)
     if not u:
         return
     run = await QuestRun(quest_id=str(quest.id), user_id=str(u.id), trace=[]).insert()
     blocks = _blocks(quest)
     first = quest.structure["blocks"][0]["id"]
     target = _next_block_id(quest, blocks, first, None)
-    await send_block(vk, peer_id, quest, run, target)
+    await send_block(vk, peer_id, quest, run, target, None)
 
 
 async def handle_message(event, vk, now: datetime | None = None):
@@ -127,6 +137,7 @@ async def handle_message(event, vk, now: datetime | None = None):
     vk_id, peer = event["vk_user_id"], event["peer_id"]
     r = _r()
     state_raw = await r.get(_state_key(vk_id))
+    state = None
 
     raw = event.get("payload")
     p = None
@@ -140,11 +151,21 @@ async def handle_message(event, vk, now: datetime | None = None):
         if not state_raw:
             return
 
+    def _load_state():
+        nonlocal state
+        try:
+            state = json.loads(state_raw)
+        except ValueError:
+            state = None
+        return state
+
     if not p:
         text = (event.get("text") or "").strip()
         if not state_raw:
             return
-        state = json.loads(state_raw)
+        if not _load_state():
+            await r.delete(_state_key(vk_id))
+            return
         if state.get("flow") == "play" and text == "стоп":
             await r.delete(_state_key(vk_id))
             await _send(vk, peer, INTERRUPTED)
@@ -159,11 +180,13 @@ async def handle_message(event, vk, now: datetime | None = None):
                 await r.delete(_state_key(vk_id))
                 await _send(vk, peer, CLOSED)
                 return
-            await _start_run(vk, peer, quest)
+            await _start_run(vk, vk_id, peer, quest)
         return
 
     # payload-кнопка: quest=ans / quest=next
-    state = json.loads(state_raw)
+    if not _load_state():
+        await r.delete(_state_key(vk_id))
+        return
     if state.get("flow") != "play":
         return
     try:
@@ -181,8 +204,8 @@ async def handle_message(event, vk, now: datetime | None = None):
     block_id = state["block_id"]
     if block_id not in blocks:
         return
-    if p["quest"] == "ans" and p.get("block") != block_id:
-        return  # stale-кнопка от предыдущего блока
+    if p.get("block") != block_id:
+        return  # stale-кнопка (дубль «Дальше»/ответ) от предыдущего блока
     b = blocks[block_id]
     if p["quest"] == "ans" and b["type"] != "question":
         return
