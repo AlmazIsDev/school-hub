@@ -204,3 +204,21 @@ async def test_resolve_invalid_action_422(client, db):
     r = await client.post(f"/api/bridge/reports/{rid}/resolve",
                           json={"action": "ban_days", "days": 99999}, headers=th)
     assert r.status_code == 422
+
+
+async def test_report_shows_reporter_and_message(client, db):
+    from app.modules.bridge.models import PairMessage
+    from app.modules.users.service import create_user
+    rep_u, _ = await create_user(login="rep1", full_name="Репортёр", role="student")
+    rep = str(rep_u.id)
+    msg = PairMessage(pair_id="p" * 24, sender_id="x" * 24, text="плохой текст")
+    await msg.insert()
+    r_doc = Report(reporter_id=rep, reported_user_id="x" * 24,
+                   message_id=str(msg.id), reason="жалоба")
+    await r_doc.insert()
+    th = _h(await _mk_user("t9", "teacher"))
+    r = await client.get("/api/bridge/reports?status=open", headers=th)
+    assert r.status_code == 200
+    row = next(x for x in r.json() if x["id"] == str(r_doc.id))
+    assert row["reporter_full_name"] == "Репортёр"
+    assert row["message_text"] == "плохой текст"
