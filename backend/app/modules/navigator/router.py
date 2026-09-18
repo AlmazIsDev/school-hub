@@ -2,13 +2,18 @@ import re
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from gridfs import NoFile
 
+from ...core.db import get_gridfs
 from ...core.security import get_current_user, require_role
 from . import schemas
 from .models import Building, Floor, Room
 
 router = APIRouter(prefix="/api/nav", tags=["navigator"])
+
+ALLOWED_PLAN_TYPES = {"image/svg+xml", "image/png", "image/jpeg"}
+MAX_PLAN_SIZE = 5 * 1024 * 1024
 
 
 def _get(doc_id: str):
@@ -46,6 +51,7 @@ async def delete_building(building_id: str, user: dict = Depends(require_role("a
         floor_ids = [str(f.id) for f in floors]
         await Room.find({"floor_id": {"$in": floor_ids}}).delete()
         for f in floors:
+            await _delete_plan(f.plan_id)
             await f.delete()
     await b.delete()
     return {"ok": True}
@@ -73,6 +79,16 @@ async def list_floors(building_id: str, user: dict = Depends(get_current_user)):
             for f in floors]
 
 
+async def _delete_plan(plan_id: str | None) -> None:
+    """Файл из GridFS, отсутствие файла молча игнорируем."""
+    if not plan_id:
+        return
+    try:
+        await get_gridfs().delete(ObjectId(plan_id))
+    except NoFile:
+        pass
+
+
 @router.delete("/floors/{floor_id}")
 async def delete_floor(floor_id: str, user: dict = Depends(require_role("admin"))):
     f = await Floor.get(_get(floor_id))
@@ -80,8 +96,44 @@ async def delete_floor(floor_id: str, user: dict = Depends(require_role("admin")
         raise HTTPException(404, "Этаж не найден")
     if await Room.find_one(Room.floor_id == floor_id):
         raise HTTPException(409, "На этаже есть комнаты, сначала удали их")
+    await _delete_plan(f.plan_id)
     await f.delete()
     return {"ok": True}
+
+
+@router.post("/floors/{floor_id}/plan")
+async def upload_plan(floor_id: str, file: UploadFile = File(...),
+                      user: dict = Depends(require_role("admin"))):
+    f = await Floor.get(_get(floor_id))
+    if not f:
+        raise HTTPException(404, "Этаж не найден")
+    if file.content_type not in ALLOWED_PLAN_TYPES:
+        raise HTTPException(422, "Разрешены только SVG, PNG и JPEG")
+    data = await file.read()
+    if len(data) > MAX_PLAN_SIZE:
+        raise HTTPException(413, "Файл больше 5 МБ")
+    if not data:
+        raise HTTPException(422, "Пустой файл")
+    # план неизменяем: новая загрузка = новый plan_id, старый файл подчищаем
+    await _delete_plan(f.plan_id)
+    grid = get_gridfs()
+    fid = await grid.upload_from_stream(file.filename or "plan", data,
+                                        metadata={"content_type": file.content_type})
+    f.plan_id = str(fid)
+    await f.save()
+    return {"id": str(f.id), "plan_id": f.plan_id}
+
+
+@router.get("/plans/{plan_id}")
+async def get_plan(plan_id: str, user: dict = Depends(get_current_user)):
+    try:
+        grid_out = await get_gridfs().open_download_stream(_get(plan_id))
+    except NoFile:
+        raise HTTPException(404, "План не найден")
+    content = await grid_out.read()
+    content_type = (grid_out.metadata or {}).get("content_type", "application/octet-stream")
+    return Response(content=content, media_type=content_type,
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 # ---------- rooms ----------

@@ -1,3 +1,4 @@
+import pytest
 import pytest_asyncio
 from mongomock_motor import AsyncMongoMockClient
 from beanie import init_beanie
@@ -206,6 +207,67 @@ async def test_room_requires_admin(client, db):
                         ("delete", "/api/nav/rooms/x")):
         r = await getattr(client, method)(url, headers=st)
         assert r.status_code == 403, f"{method} {url} -> {r.status_code}"
+
+
+# ---------- plans (GridFS) ----------
+
+# mongomock GridFS не поддерживает: цикл загрузка/отдача проверяем интеграционно
+@pytest.mark.skip(reason="GridFS не эмулируется mongomock — нужен реальный mongo")
+async def test_plan_upload_download_roundtrip(client, tokens, floor):
+    hdr = _h(tokens["admin"])
+    r = await client.post(f"/api/nav/floors/{floor}/plan",
+                          files={"file": ("1.svg", b"<svg/>", "image/svg+xml")}, headers=hdr)
+    assert r.status_code == 200
+    plan_id = r.json()["plan_id"]
+    r = await client.get(f"/api/nav/plans/{plan_id}", headers=_h(tokens["student"]))
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/svg+xml"
+    assert r.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert r.content == b"<svg/>"
+    # повторная загрузка подменяет план и удаляет старый файл
+    r2 = await client.post(f"/api/nav/floors/{floor}/plan",
+                           files={"file": ("1.png", b"\x89PNG", "image/png")}, headers=hdr)
+    assert r2.json()["plan_id"] != plan_id
+    r = await client.get(f"/api/nav/plans/{plan_id}", headers=_h(tokens["admin"]))
+    assert r.status_code == 404
+    r = await client.get(f"/api/nav/plans/{r2.json()['plan_id']}", headers=_h(tokens["admin"]))
+    assert r.status_code == 200
+    # удаление этажа сносит файл
+    r = await client.delete(f"/api/nav/floors/{floor}", headers=hdr)
+    assert r.status_code == 200
+    r = await client.get(f"/api/nav/plans/{r2.json()['plan_id']}", headers=hdr)
+    assert r.status_code == 404
+
+
+async def test_plan_upload_rights(client, tokens, floor):
+    r = await client.post(f"/api/nav/floors/{floor}/plan",
+                          files={"file": ("1.svg", b"<svg/>", "image/svg+xml")},
+                          headers=_h(tokens["student"]))
+    assert r.status_code == 403
+    r = await client.post(f"/api/nav/floors/{floor}/plan",
+                          files={"file": ("1.svg", b"<svg/>", "image/svg+xml")},
+                          headers=_h(tokens["teacher"]))
+    assert r.status_code == 403
+
+
+async def test_plan_upload_validation(client, tokens, floor):
+    hdr = _h(tokens["admin"])
+    r = await client.post(f"/api/nav/floors/{floor}/plan",
+                          files={"file": ("1.gif", b"GIF89a", "image/gif")}, headers=hdr)
+    assert r.status_code == 422
+    r = await client.post(f"/api/nav/floors/{floor}/plan",
+                          files={"file": ("big.png", b"x" * (5 * 1024 * 1024 + 1), "image/png")},
+                          headers=hdr)
+    assert r.status_code == 413
+    # несуществующий этаж
+    r = await client.post(f"/api/nav/floors/{'0' * 24}/plan",
+                          files={"file": ("1.svg", b"<svg/>", "image/svg+xml")}, headers=hdr)
+    assert r.status_code == 404
+
+
+async def test_plan_get_unknown_404(client, tokens):
+    r = await client.get("/api/nav/plans/not-an-objectid", headers=_h(tokens["student"]))
+    assert r.status_code == 404
 
 
 async def test_duplicate_floor_level_409(client, db):
