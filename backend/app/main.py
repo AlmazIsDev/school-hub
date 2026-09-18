@@ -34,6 +34,8 @@ def create_app() -> FastAPI:
     app.include_router(users_router)
     from .modules.pulse.router import router as pulse_router
     app.include_router(pulse_router)
+    from .modules.bridge.router import router as bridge_router
+    app.include_router(bridge_router)
 
     @app.get("/healthz")
     async def healthz():
