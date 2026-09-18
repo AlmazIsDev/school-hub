@@ -56,15 +56,18 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
     overlayRef.current?.remove();
     overlayRef.current = null;
     if (!planUrl) { map.setView([0, 0], -1); return; }
+    let cancelled = false;
     const img = new Image();
     img.onload = () => {
-      if (!mapRef.current) return;
+      // план мог смениться, пока картинка декодировалась
+      if (cancelled || !mapRef.current) return;
       const w = img.naturalWidth || 1000;
       const h = img.naturalHeight || 1000;
       overlayRef.current = L.imageOverlay(planUrl, [[0, 0], [h, w]]).addTo(map);
       map.fitBounds([[0, 0], [h, w]]);
     };
     img.src = planUrl;
+    return () => { cancelled = true; };
   }, [planUrl]);
 
   // комнаты

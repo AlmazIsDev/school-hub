@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Button, Card, Group, NativeSelect, NumberInput, Stack, Table, Tabs, Text, TextInput, Title,
 } from "@mantine/core";
@@ -19,13 +19,23 @@ function usePlanObjectUrl(planId: string | null | undefined) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (!planId) { setUrl(null); setError(null); return; }
-    let revoked: string | null = null;
+    setError(null);
+    if (!planId) { setUrl(null); return; }
+    let cancelled = false;
+    let objectUrl: string | null = null;
     apiBlob(`/nav/plans/${planId}`)
-      .then((b) => { revoked = URL.createObjectURL(b); setUrl(revoked); })
-      .catch((err) => setError(errMsg(err, "Не удалось загрузить план")))
-      .finally(() => setError(null));
-    return () => { if (revoked) URL.revokeObjectURL(revoked); };
+      .then((b) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(b);
+        setUrl(objectUrl);
+      })
+      .catch((err) => { if (!cancelled) setError(errMsg(err, "Не удалось загрузить план")); });
+    return () => {
+      // отменяем и поздний резолв, и утечку objectURL при размонтировании/смене плана
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setUrl(null);
+    };
   }, [planId]);
   return { url, error };
 }
@@ -79,11 +89,18 @@ function Viewer({ buildings }: { buildings: Building[] }) {
   const { url: planUrl, error: planError } = usePlanObjectUrl(
     floors.find((f) => f.id === floorId)?.plan_id,
   );
+  // этаж, выбранный при переходе из поиска, применяется после загрузки этажей здания
+  const pendingFloorRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!buildingId) { setFloors([]); setFloorId(null); return; }
     apiFetch<Floor[]>(`/nav/floors?building_id=${buildingId}`)
-      .then((f) => { setFloors(f); setFloorId(f[0]?.id ?? null); })
+      .then((f) => {
+        setFloors(f);
+        const pending = pendingFloorRef.current;
+        pendingFloorRef.current = null;
+        setFloorId(pending && f.some((x) => x.id === pending) ? pending : f[0]?.id ?? null);
+      })
       .catch((err) => setError(errMsg(err, "Не удалось загрузить этажи")));
   }, [buildingId]);
 
@@ -108,8 +125,12 @@ function Viewer({ buildings }: { buildings: Building[] }) {
     setQuery("");
     setSelectedRoom(null);
     setHighlightRoomId(null);
-    setBuildingId(r.building_id);
-    setFloorId(r.floor_id);
+    if (r.building_id && r.building_id !== buildingId) {
+      pendingFloorRef.current = r.floor_id;
+      setBuildingId(r.building_id);
+    } else {
+      setFloorId(r.floor_id);
+    }
     setHighlightRoomId(r.id);
   }
 
@@ -374,12 +395,10 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
         <Button variant={deleting ? "filled" : "light"} color="red" onClick={() => { setDeleting(!deleting); setDrawing(false); setDraft([]); }}>
           {deleting ? "Режим удаления: вкл" : "Удалять комнаты кликом"}
         </Button>
-        {!floor.plan_id && (
-          <Button component="label" variant="light">
-            Загрузить план
-            <input type="file" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg" hidden onChange={uploadPlan} />
-          </Button>
-        )}
+        <Button component="label" variant="light">
+          {floor.plan_id ? "Заменить план" : "Загрузить план"}
+          <input type="file" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg" hidden onChange={uploadPlan} />
+        </Button>
         {drawing && (
           <>
             <Text size="sm">Точек: {draft.length}</Text>
