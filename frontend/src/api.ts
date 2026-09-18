@@ -39,6 +39,15 @@ export async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise
   return r.json();
 }
 
+/** То же, что apiFetch, но возвращает blob (планы этажей — с Authorization, не по прямой ссылке). */
+export async function apiBlob(path: string): Promise<Blob> {
+  const r = await fetch(base + path, {
+    headers: tokens ? { Authorization: `Bearer ${tokens.access}` } : {},
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.blob();
+}
+
 /** Декодирует payload JWT без проверки подписи — роль и id нужны только для UI. */
 export function tokenPayload(token: string): { sub: string; role: string } {
   const payload = JSON.parse(atob(token.split(".")[1]));
