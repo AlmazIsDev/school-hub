@@ -40,6 +40,11 @@ export default function Layout() {
           onClick={() => { navigate("/duty"); toggle(); }}
         />
         <NavLink
+          label="Медиацентр"
+          active={location.pathname === "/media"}
+          onClick={() => { navigate("/media"); toggle(); }}
+        />
+        <NavLink
           label="Карта"
           active={location.pathname === "/navigator"}
           onClick={() => { navigate("/navigator"); toggle(); }}

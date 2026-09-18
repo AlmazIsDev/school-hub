@@ -10,6 +10,7 @@ import BridgePage from "./pages/BridgePage";
 import DutyPage from "./pages/DutyPage";
 import NavigatorPage from "./pages/NavigatorPage";
 import BuilderPage from "./pages/BuilderPage";
+import MediaPage from "./pages/MediaPage";
 
 function Guard({ children }: { children: React.ReactNode }) {
   const { user, mustChangePassword } = useAuth();
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/duty" element={<DutyPage />} />
         <Route path="/navigator" element={<NavigatorPage />} />
         <Route path="/builder" element={<BuilderPage />} />
+        <Route path="/media" element={<MediaPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
