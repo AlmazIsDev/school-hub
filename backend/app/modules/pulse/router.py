@@ -3,11 +3,13 @@ import logging
 from datetime import datetime, timezone
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException
 
 from ...core import redis as core_redis
 from ...core.security import get_current_user, require_role
 from ..users import service as users_service
+from ...modules.users.models import SchoolClass
 from . import schemas
 from .models import EmbeddedQuestion, Poll
 
@@ -24,7 +26,7 @@ def poll_out(p: Poll) -> dict:
 async def get_poll(poll_id: str) -> Poll:
     try:
         poll = await Poll.get(ObjectId(poll_id))
-    except Exception:
+    except (InvalidId, TypeError):
         poll = None
     if not poll:
         raise HTTPException(404, "Опрос не найден")
@@ -37,9 +39,12 @@ def _can_manage(poll: Poll, user: dict) -> bool:
 
 @router.post("/polls")
 async def create_poll(body: schemas.PollCreateIn, user: dict = Depends(require_role("teacher", "admin"))):
-    for q in body.questions:
-        if q.type not in ("scale1_5", "free_text"):
-            raise HTTPException(422, "Тип вопроса не в списке")
+    try:
+        school_class = await SchoolClass.get(ObjectId(body.class_id))
+    except (InvalidId, TypeError):
+        school_class = None
+    if not school_class:
+        raise HTTPException(404, "Класс не найден")
     poll = Poll(teacher_id=user["id"], class_id=body.class_id, title=body.title,
                 topic=body.topic,
                 questions=[EmbeddedQuestion(text=q.text, type=q.type) for q in body.questions])
@@ -52,6 +57,8 @@ async def publish_poll(poll_id: str, user: dict = Depends(require_role("teacher"
     poll = await get_poll(poll_id)
     if not _can_manage(poll, user):
         raise HTTPException(403, "Не ваш опрос")
+    if poll.status == "closed":
+        raise HTTPException(409, "Опрос закрыт")
     if poll.status != "draft":
         raise HTTPException(409, "Опрос уже опубликован")
     poll.status = "active"
@@ -79,7 +86,9 @@ async def close_poll(poll_id: str, user: dict = Depends(require_role("teacher", 
 
 @router.get("/polls")
 async def list_polls(user: dict = Depends(get_current_user)):
-    if user["role"] in ("teacher", "admin"):
+    if user["role"] == "admin":
+        rows = await Poll.find_all().to_list()
+    elif user["role"] == "teacher":
         rows = await Poll.find(Poll.teacher_id == user["id"]).to_list()
     else:
         u = await users_service.by_id(user["id"])
