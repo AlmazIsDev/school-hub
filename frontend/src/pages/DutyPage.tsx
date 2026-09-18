@@ -57,15 +57,17 @@ function TeacherView() {
 
   useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  async function act(fn: () => Promise<unknown>, fallback: string) {
-    if (busy) return;
+  async function act(fn: () => Promise<unknown>, fallback: string): Promise<boolean> {
+    if (busy) return false;
     setError(null);
     setBusy(true);
     try {
       await fn();
       await refresh();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : fallback);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -165,7 +167,7 @@ function ScheduleEditor({ zones, students, busy, onSave }: {
   zones: Zone[];
   students: { value: string; label: string }[];
   busy: boolean;
-  onSave: (body: { zone_id: string; week_pattern: Slot[] }) => Promise<void>;
+  onSave: (body: { zone_id: string; week_pattern: Slot[] }) => Promise<boolean>;
 }) {
   const [zoneId, setZoneId] = useState<string | null>(null);
   const [cells, setCells] = useState<Record<string, string>>({});
@@ -203,9 +205,10 @@ function ScheduleEditor({ zones, students, busy, onSave }: {
     setMsg(null);
     setSaving(true);
     try {
-      await onSave({ zone_id: zoneId, week_pattern });
-      setCells({});
-      setMsg("График сохранён");
+      if (await onSave({ zone_id: zoneId, week_pattern })) {
+        setCells({});
+        setMsg("График сохранён");
+      }
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "Не удалось сохранить график");
     } finally {
