@@ -7,6 +7,7 @@ export default function Layout() {
   const [opened, { toggle }] = useDisclosure(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const canModerate = user?.role === "teacher" || user?.role === "admin";
 
   return (
     <AppShell header={{ height: 56 }} navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !opened } }}>
@@ -33,6 +34,13 @@ export default function Layout() {
           active={location.pathname === "/polls"}
           onClick={() => { navigate("/polls"); toggle(); }}
         />
+        {canModerate && (
+          <NavLink
+            label="Помощь"
+            active={location.pathname === "/bridge"}
+            onClick={() => { navigate("/bridge"); toggle(); }}
+          />
+        )}
       </AppShell.Navbar>
       <AppShell.Main>
         <Outlet />
