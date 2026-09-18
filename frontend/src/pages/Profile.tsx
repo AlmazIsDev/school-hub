@@ -100,7 +100,7 @@ export default function Profile() {
           {vkCode ? (
             <Text>Ваш код: <Text span fw={700} style={{ userSelect: "all" }}>{vkCode}</Text>. Отправьте его боту.</Text>
           ) : (
-            <Text c="dimmed">{vkLinked ? "Код отправлен боту." : "VK не привязан."}</Text>
+            <Text c="dimmed">{vkLinked ? "VK привязан. «Получить новый код» — если хотите привязать другой аккаунт." : "VK не привязан."}</Text>
           )}
           <Button onClick={getVkCode}>{vkLinked ? "Получить новый код" : "Получить код VK"}</Button>
           {vkLinked && <Button variant="outline" color="red" onClick={unlinkVk}>Отвязать</Button>}
