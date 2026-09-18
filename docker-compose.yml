@@ -22,6 +22,9 @@ services:
       JWT_ALG: ${JWT_ALG:-HS256}
       ACCESS_TTL_MIN: ${ACCESS_TTL_MIN:-15}
       REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-7}
+      ADMIN_LOGIN: ${ADMIN_LOGIN:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-Администратор}
     depends_on:
       mongo: { condition: service_healthy }
       redis: { condition: service_started }
