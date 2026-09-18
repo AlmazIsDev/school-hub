@@ -1,12 +1,17 @@
+import json
+import logging
+
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException
 
+from ...core import redis as core_redis
 from ...core.security import get_current_user, require_role
 from . import schemas
 from .models import Post, PostIdea
 
 router = APIRouter(prefix="/api/media", tags=["media"])
+log = logging.getLogger("api")
 
 STATUS_CHAIN = ["idea", "in_progress", "review", "published"]
 
@@ -70,6 +75,13 @@ async def patch_post(post_id: str, body: schemas.PostPatch,
     if body.status is not None:
         post.status = body.status
     await post.save()
+    if post.status == "published":
+        try:
+            await core_redis.get_redis().publish(
+                "events", json.dumps({"type": "media.published", "post_id": str(post.id)}))
+        except Exception:
+            # падение pub/sub не должно отменять саму публикацию
+            log.exception("не опубликовали media.published post=%s", post.id)
     return _post_out(post)
 
 
