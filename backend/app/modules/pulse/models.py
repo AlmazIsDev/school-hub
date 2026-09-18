@@ -16,6 +16,9 @@ class Poll(Document):
     title: str
     topic: str
     status: Literal["draft", "active", "closed"] = "draft"
+    # Рассылка по poll.published дошла до бота (pub/sub не персистентен —
+    # флаг нужен для догонялки при рестарте бота)
+    notified: bool = False
     questions: list[EmbeddedQuestion]
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     closed_at: datetime | None = None
