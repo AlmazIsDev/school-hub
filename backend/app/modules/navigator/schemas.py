@@ -18,6 +18,18 @@ class BuildingIn(BaseModel):
         return v
 
 
+class BuildingPatchIn(BaseModel):
+    name: str | None = None
+    address: str | None = None
+
+    @field_validator("name", "address")
+    @classmethod
+    def not_empty(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError("не может быть пустым")
+        return v
+
+
 class FloorIn(BaseModel):
     building_id: str
     level: int

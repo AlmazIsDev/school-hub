@@ -12,6 +12,7 @@ def register(dp):
             message="Команды:\n"
             "старт — начать работу\n"
             "код <6 цифр> — привязать аккаунт с сайта\n"
+            "мой аккаунт — какой аккаунт привязан к этому VK\n"
             "стать помощником — зарегистрироваться в bridge\n"
             "нужна помощь — подобрать помощника\n"
             "закончить — закрыть активную пару (только в паре)\n"
@@ -36,6 +37,18 @@ def register(dp):
 
     @dp.on(r"^код (\d{6})$")
     async def bind(event, vk):
+        vk_id = event["vk_user_id"]
+        # VK может быть привязан к другому аккаунту — говорим сразу, не падаем
+        existing = await service.by_vk(vk_id)
+        if existing:
+            await vk.call(
+                "messages.send",
+                peer_id=event["peer_id"],
+                random_id=0,
+                message=f"Этот VK уже привязан к аккаунту «{existing.full_name}» "
+                "(профиль → Отвязать).",
+            )
+            return
         user_id = await codes.consume_code(event["match"].group(1))
         if not user_id:
             await vk.call(
@@ -54,13 +67,31 @@ def register(dp):
                 message="Пользователь не найден. Возьми новый код на сайте.",
             )
             return
-        u.vk_id = event["vk_user_id"]
+        u.vk_id = vk_id
         await u.save()
         await vk.call(
             "messages.send",
             peer_id=event["peer_id"],
             random_id=0,
             message=f"Готово, {u.full_name}! Аккаунт привязан.",
+        )
+
+    @dp.on(r"^/?(?:мой аккаунт|мой профиль|аккаунт)$")
+    async def my_account(event, vk):
+        u = await service.by_vk(event["vk_user_id"])
+        if not u:
+            await vk.call(
+                "messages.send",
+                peer_id=event["peer_id"],
+                random_id=0,
+                message="Аккаунт не привязан. Отправь «код <6 цифр>» с сайта.",
+            )
+            return
+        await vk.call(
+            "messages.send",
+            peer_id=event["peer_id"],
+            random_id=0,
+            message=f"Твой аккаунт: {u.full_name}\nЛогин: {u.login}\nРоль: {u.role}",
         )
 
     @dp.on(r"^/?(?:стать помощником|помощник)$")

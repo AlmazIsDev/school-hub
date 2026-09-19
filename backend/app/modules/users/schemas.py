@@ -21,6 +21,12 @@ class UserCreateIn(BaseModel):
     role: str  # валидируется в service (Literal["student","teacher","admin"] надёжнее)
     class_id: str | None = None
 
+
+class UserPatchIn(BaseModel):
+    full_name: str | None = None
+    role: str | None = None
+    class_id: str | None = None
+
 class ClassIn(BaseModel):
     grade: int
     letter: str

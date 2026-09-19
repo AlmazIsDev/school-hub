@@ -32,6 +32,8 @@ def create_app() -> FastAPI:
 
     from .modules.users.router import router as users_router
     app.include_router(users_router)
+    from .modules.admin.router import router as admin_router
+    app.include_router(admin_router)
     from .modules.pulse.router import router as pulse_router
     app.include_router(pulse_router)
     from .modules.bridge.router import router as bridge_router

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Button, Card, Group, NativeSelect, NumberInput, Stack, Table, Tabs, Text, TextInput, Title,
+  Button, Card, Group, Modal, NativeSelect, NumberInput, Stack, Table, Tabs, Text, TextInput, Title,
 } from "@mantine/core";
 import { apiBlob, apiFetch } from "../api";
 import { useAuth } from "../auth";
@@ -206,6 +206,10 @@ function Editor({ buildings, reloadBuildings }: { buildings: Building[]; reloadB
   const [buildingId, setBuildingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // переименование здания
+  const [renaming, setRenaming] = useState<Building | null>(null);
+  const [rnName, setRnName] = useState("");
+  const [rnAddress, setRnAddress] = useState("");
 
   async function act(fn: () => Promise<unknown>, fallback: string): Promise<boolean> {
     if (busy) return false;
@@ -223,6 +227,22 @@ function Editor({ buildings, reloadBuildings }: { buildings: Building[]; reloadB
       "Не удалось добавить здание",
     )) { setName(""); setAddress(""); await reloadBuildings(); }
   }
+
+  function openRename(b: Building) {
+    setRenaming(b);
+    setRnName(b.name);
+    setRnAddress(b.address);
+  }
+
+  const saveRename = () =>
+    act(async () => {
+      await apiFetch(`/nav/buildings/${renaming!.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: rnName.trim(), address: rnAddress.trim() }),
+      });
+      setRenaming(null);
+      await reloadBuildings();
+    }, "Не удалось переименовать здание");
 
   return (
     <Stack gap="md">
@@ -247,6 +267,10 @@ function Editor({ buildings, reloadBuildings }: { buildings: Building[]; reloadB
               value={buildingId ?? ""}
               onChange={(e) => setBuildingId(e.currentTarget.value || null)}
             />
+            <Button variant="light" disabled={!buildingId}
+              onClick={() => openRename(buildings.find((b) => b.id === buildingId)!)}>
+              Переименовать
+            </Button>
             <Button variant="light" color="red" loading={busy}
               disabled={!buildingId}
               onClick={() => act(async () => {
@@ -259,6 +283,17 @@ function Editor({ buildings, reloadBuildings }: { buildings: Building[]; reloadB
           </Group>
           {error && <div role="alert">{error}</div>}
           {buildingId && <FloorsEditor buildingId={buildingId} act={act} busy={busy} />}
+
+          <Modal opened={renaming !== null} onClose={() => setRenaming(null)} title="Переименование здания">
+            <Stack gap="sm">
+              <TextInput label="Название" value={rnName} onChange={(e) => setRnName(e.currentTarget.value)} maxLength={200} required />
+              <TextInput label="Адрес" value={rnAddress} onChange={(e) => setRnAddress(e.currentTarget.value)} maxLength={200} required />
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => setRenaming(null)}>Отмена</Button>
+                <Button onClick={saveRename} loading={busy}>Сохранить</Button>
+              </Group>
+            </Stack>
+          </Modal>
         </>
       )}
     </Stack>
@@ -332,6 +367,8 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
   const [rooms, setRooms] = useState<Room[]>([]);
   const [drawing, setDrawing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingRoomMode, setEditingRoomMode] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [draft, setDraft] = useState<[number, number][]>([]);
   const [roomNumber, setRoomNumber] = useState("");
   const [roomName, setRoomName] = useState("");
@@ -363,9 +400,16 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
   }
 
   async function onRoomClick(room: Room) {
-    if (!deleting) return;
-    if (!window.confirm(`Удалить кабинет ${room.number}?`)) return;
-    if (await act(() => apiFetch(`/nav/rooms/${room.id}`, { method: "DELETE" }), "Не удалось удалить комнату")) await refresh();
+    if (deleting) {
+      if (!window.confirm(`Удалить кабинет ${room.number}?`)) return;
+      if (await act(() => apiFetch(`/nav/rooms/${room.id}`, { method: "DELETE" }), "Не удалось удалить комнату")) await refresh();
+      return;
+    }
+    if (editingRoomMode) {
+      setEditingRoom(room);
+      setRoomNumber(room.number);
+      setRoomName(room.name);
+    }
   }
 
   async function saveRoom(e: React.FormEvent) {
@@ -392,8 +436,11 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
         <Button variant={drawing ? "filled" : "light"} onClick={() => { setDrawing(!drawing); setDeleting(false); setDraft([]); setFinishOpen(false); }}>
           {drawing ? "Режим рисования: вкл" : "Добавить комнату"}
         </Button>
-        <Button variant={deleting ? "filled" : "light"} color="red" onClick={() => { setDeleting(!deleting); setDrawing(false); setDraft([]); }}>
+        <Button variant={deleting ? "filled" : "light"} color="red" onClick={() => { setDeleting(!deleting); setDrawing(false); setEditingRoomMode(false); setDraft([]); }}>
           {deleting ? "Режим удаления: вкл" : "Удалять комнаты кликом"}
+        </Button>
+        <Button variant={editingRoomMode ? "filled" : "light"} onClick={() => { setEditingRoomMode(!editingRoomMode); setDrawing(false); setDeleting(false); setDraft([]); }}>
+          {editingRoomMode ? "Режим правки: вкл" : "Править комнаты кликом"}
         </Button>
         <Button component="label" variant="light">
           {floor.plan_id ? "Заменить план" : "Загрузить план"}
@@ -432,6 +479,39 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
         />
       )}
       {drawing && !finishOpen && <Text size="sm" c="dimmed" mt="xs">Кликай по карте, чтобы ставить вершины полигона.</Text>}
+
+      <Modal opened={editingRoom !== null} onClose={() => setEditingRoom(null)} title={`Кабинет ${editingRoom?.number ?? ""}`}>
+        <Stack gap="sm">
+          <TextInput label="Номер" value={roomNumber} onChange={(e) => setRoomNumber(e.currentTarget.value)} maxLength={32} required />
+          <TextInput label="Название" value={roomName} onChange={(e) => setRoomName(e.currentTarget.value)} maxLength={200} />
+          <Text size="sm" c="dimmed">
+            Геометрию не меняет: переместить кабинет — удали его и нарисуй заново.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setEditingRoom(null)}>Отмена</Button>
+            <Button
+              loading={busy}
+              onClick={() =>
+                act(async () => {
+                  await apiFetch(`/nav/rooms/${editingRoom!.id}`, {
+                    method: "PUT",
+                    body: JSON.stringify({
+                      floor_id: floor.id,
+                      number: roomNumber.trim(),
+                      name: roomName.trim(),
+                      geometry: editingRoom!.geometry,
+                    }),
+                  });
+                  setEditingRoom(null);
+                  await refresh();
+                }, "Не удалось сохранить комнату")
+              }
+            >
+              Сохранить
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Card>
   );
 }

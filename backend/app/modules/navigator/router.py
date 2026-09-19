@@ -57,6 +57,18 @@ async def delete_building(building_id: str, user: dict = Depends(require_role("a
     return {"ok": True}
 
 
+@router.patch("/buildings/{building_id}")
+async def patch_building(building_id: str, body: schemas.BuildingPatchIn,
+                         user: dict = Depends(require_role("admin"))):
+    b = await Building.get(_get(building_id))
+    if not b:
+        raise HTTPException(404, "Здание не найдено")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(b, field, value)
+    await b.save()
+    return {"id": str(b.id), "name": b.name, "address": b.address, "created_at": b.created_at}
+
+
 # ---------- floors ----------
 
 @router.post("/floors")

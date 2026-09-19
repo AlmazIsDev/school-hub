@@ -28,6 +28,10 @@ async def ensure_admin(*, login: str, password: str, full_name: str) -> None:
     await u.insert()
 
 
+async def by_vk(vk_id: int) -> User | None:
+    return await User.find_one(User.vk_id == vk_id)
+
+
 async def by_id(user_id: str) -> User | None:
     """id приходит из JWT (sub) или из Redis — может быть любым мусором, не кидаем исключение."""
     try:
