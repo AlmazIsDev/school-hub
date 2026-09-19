@@ -16,6 +16,11 @@ def create_app() -> FastAPI:
         await service.ensure_admin(
             login=settings.admin_login, password=settings.admin_password,
             full_name=settings.admin_name)
+        # разовый фиксап: до keep_nulls=False vk_id/class_id писались как null,
+        # что ломало sparse-уникальный индекс vk_id (второй юзер не создавался)
+        from .core.db import get_motor_client
+        await get_motor_client().get_database().users.update_many(
+            {"vk_id": None}, {"$unset": {"vk_id": ""}})
         yield
 
     app = FastAPI(title="School Hub", lifespan=lifespan)
