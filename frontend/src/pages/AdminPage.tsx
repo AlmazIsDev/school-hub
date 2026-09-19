@@ -31,6 +31,7 @@ export default function AdminPage() {
   const [role, setRole] = useState("student");
   const [classId, setClassId] = useState<string | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // редактирование пользователя
   const [editUser, setEditUser] = useState<AppUser | null>(null);
@@ -80,15 +81,21 @@ export default function AdminPage() {
 
   const createUser = (e: React.FormEvent) => {
     e.preventDefault();
+    setCreateError(null);
     act(async () => {
-      const res = await apiFetch<{ temp_password: string }>("/users", {
-        method: "POST",
-        body: JSON.stringify({ login: login.trim(), full_name: fullName.trim(), role, class_id: role === "student" ? classId : null }),
-      });
-      setTempPassword(res.temp_password);
-      setLogin("");
-      setFullName("");
-      setClassId(null);
+      try {
+        const res = await apiFetch<{ temp_password: string }>("/users", {
+          method: "POST",
+          body: JSON.stringify({ login: login.trim(), full_name: fullName.trim(), role, class_id: role === "student" ? classId : null }),
+        });
+        setTempPassword(res.temp_password);
+        setLogin("");
+        setFullName("");
+        setClassId(null);
+      } catch (err) {
+        // ошибка именно у формы: сверху страницы её легко пропустить
+        setCreateError(err instanceof Error ? err.message : "Не удалось создать пользователя");
+      }
     }, "Не удалось создать пользователя");
   };
 
@@ -175,6 +182,7 @@ export default function AdminPage() {
               />
             )}
             <Button type="submit" loading={busy}>Создать</Button>
+            {createError && <div role="alert">{createError}</div>}
             {tempPassword && (
               <Text c="red" fw={500}>Временный пароль (покажется один раз): <Text span style={{ userSelect: "all" }}>{tempPassword}</Text></Text>
             )}
