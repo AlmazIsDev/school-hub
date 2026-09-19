@@ -52,12 +52,13 @@ async def create_user(body: schemas.UserCreateIn, user: dict = Depends(require_r
     if body.role not in ("student", "teacher", "admin"):
         raise HTTPException(422, "Роль не в списке")
     if await service.by_login(body.login):
-        raise HTTPException(409, "Логин занят")
+        raise HTTPException(409, f"Логин «{body.login}» занят")
     try:
         _, temp = await service.create_user(**body.model_dump())
-    except DuplicateKeyError:
-        # mongomock индексы не эмулирует, реальный Mongo отсекает гонку
-        raise HTTPException(409, "Логин занят")
+    except DuplicateKeyError as err:
+        # mongomock индексы не эмулирует, реальный Mongo отсекает гонку;
+        # какой именно индекс споткнулся — видно в сообщении (login/vk_id)
+        raise HTTPException(409, f"Конфликт уникальности: {err.details.get('keyPattern', 'логин занят')}")
     return {"ok": True, "temp_password": temp}
 
 @router.get("/users")
