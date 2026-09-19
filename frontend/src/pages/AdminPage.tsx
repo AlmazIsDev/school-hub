@@ -446,7 +446,11 @@ function DbManager() {
         <Stack gap="sm">
           <Textarea
             value={editing?.text ?? ""}
-            onChange={(e) => setEditing((cur) => (cur ? { ...cur, text: e.currentTarget.value } : cur))}
+            onChange={(e) => {
+              // currentTarget обнуляется после обработчика — читаем значение сразу
+              const text = e.currentTarget.value;
+              setEditing((cur) => (cur ? { ...cur, text } : cur));
+            }}
             minRows={12}
             styles={{ input: { fontFamily: "monospace", fontSize: 13 } }}
           />
