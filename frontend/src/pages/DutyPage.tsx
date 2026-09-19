@@ -8,7 +8,7 @@ import { useAuth } from "../auth";
 type Zone = { id: string; name: string; created_at: string };
 type Slot = { weekday: number; slot: number; user_id: string };
 type Schedule = { id: string; teacher_id: string; zone_id: string; week_pattern: Slot[]; created_at: string };
-type Completion = { id: string; weekday: number; slot: number; date: string; marked_at: string };
+type Completion = { id: string; schedule_id: string; weekday: number; slot: number; date: string; marked_at: string };
 type AppUser = { id: string; full_name: string; role: string };
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -286,6 +286,11 @@ function StudentView() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function loadCompletions() {
+    setCompletions(await apiFetch<Completion[]>("/duty/completions"));
+  }
 
   useEffect(() => {
     (async () => {
@@ -307,6 +312,29 @@ function StudentView() {
     })();
   }, []);
 
+  /** Отметить выполнение: сегодня, этот слот. Отметку за прошлое ставит бот. */
+  const todayISO = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  async function mark(c: Schedule, sl: Slot) {
+    if (busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await apiFetch("/duty/completions", {
+        method: "POST",
+        body: JSON.stringify({ schedule_id: c.id, weekday: sl.weekday, slot: sl.slot, date: todayISO() }),
+      });
+      await loadCompletions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отметить");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (error && !myId) return <div role="alert">{error}</div>;
 
   return (
@@ -316,7 +344,7 @@ function StudentView() {
         <Title order={2} size="h4" mb="md">Мои дежурства на неделю</Title>
         <Table withTableBorder verticalSpacing="xs">
           <Table.Thead>
-            <Table.Tr><Table.Th>Зона</Table.Th><Table.Th>День</Table.Th><Table.Th>Слот</Table.Th></Table.Tr>
+            <Table.Tr><Table.Th>Зона</Table.Th><Table.Th>День</Table.Th><Table.Th>Слот</Table.Th><Table.Th /></Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {schedules.flatMap((s) =>
@@ -326,15 +354,21 @@ function StudentView() {
                   <Table.Td>{zones.find((z) => z.id === s.zone_id)?.name ?? s.zone_id}</Table.Td>
                   <Table.Td>{WEEKDAYS[sl.weekday - 1]}</Table.Td>
                   <Table.Td>{sl.slot}</Table.Td>
+                  <Table.Td>
+                    <Button size="xs" variant="light" disabled={busy}
+                      onClick={() => mark(s, sl)}>
+                      Отметить
+                    </Button>
+                  </Table.Td>
                 </Table.Tr>
               )),
             )}
             {schedules.length === 0 && (
-              <Table.Tr><Table.Td colSpan={3} c="dimmed">Слотов нет.</Table.Td></Table.Tr>
+              <Table.Tr><Table.Td colSpan={4} c="dimmed">Слотов нет.</Table.Td></Table.Tr>
             )}
           </Table.Tbody>
         </Table>
-        <Text c="dimmed" size="sm" mt="sm">Отметиться о выполнении можно в боте.</Text>
+        <Text c="dimmed" size="sm" mt="sm">«Отметить» ставит отметку за сегодня. В боте — то же самое.</Text>
       </Card>
 
       <Card withBorder>

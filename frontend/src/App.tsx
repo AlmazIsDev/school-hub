@@ -10,6 +10,8 @@ import BridgePage from "./pages/BridgePage";
 import DutyPage from "./pages/DutyPage";
 import NavigatorPage from "./pages/NavigatorPage";
 import BuilderPage from "./pages/BuilderPage";
+import QuestPlayPage from "./pages/QuestPlayPage";
+import AdminPage from "./pages/AdminPage";
 import MediaPage from "./pages/MediaPage";
 
 function Guard({ children }: { children: React.ReactNode }) {
@@ -40,6 +42,8 @@ export default function App() {
         <Route path="/duty" element={<DutyPage />} />
         <Route path="/navigator" element={<NavigatorPage />} />
         <Route path="/builder" element={<BuilderPage />} />
+        <Route path="/quests" element={<QuestPlayPage />} />
+        <Route path="/admin" element={<AdminPage />} />
         <Route path="/media" element={<MediaPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

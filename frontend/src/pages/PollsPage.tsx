@@ -225,7 +225,7 @@ export default function PollsPage() {
                   <Group gap="xs">
                     {p.status === "draft" && <Button size="xs" onClick={() => act(p, "publish")}>Опубликовать</Button>}
                     {p.status === "active" && <Button size="xs" variant="outline" color="red" onClick={() => act(p, "close")}>Закрыть</Button>}
-                    {p.status === "closed" && (
+                    {p.status !== "draft" && (
                       <Button size="xs" variant="light" component={Link} to={`/polls/${p.id}/results`}>Результаты</Button>
                     )}
                   </Group>

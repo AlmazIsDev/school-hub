@@ -52,3 +52,19 @@ async def test_vk_unlink_deleted_user_401(client, db):
     h = {"Authorization": f"Bearer {tok}"}
     r = await client.delete("/api/me/vk", headers=h)
     assert r.status_code == 401
+
+async def test_create_student_with_class(client, db):
+    """Регресс: class_id в UserCreateIn был int — ученик с классом не создавался."""
+    from app.modules.users.models import SchoolClass, User
+    from app.modules.users.service import create_user
+    cls = SchoolClass(grade=7, letter="Б")
+    await cls.insert()
+    _, tmp = await create_user(login="admin", full_name="Админ", role="admin")
+    h = {"Authorization": f"Bearer {(await client.post('/api/auth/login', json={'login': 'admin', 'password': tmp})).json()['access']}"}
+    r = await client.post("/api/users",
+                          json={"login": "s9", "full_name": "Ученик", "role": "student",
+                                "class_id": str(cls.id)},
+                          headers=h)
+    assert r.status_code == 200
+    u = await User.find_one(User.login == "s9")
+    assert u is not None and u.class_id == str(cls.id)

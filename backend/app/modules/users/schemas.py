@@ -19,7 +19,7 @@ class UserCreateIn(BaseModel):
     login: str
     full_name: str
     role: str  # валидируется в service (Literal["student","teacher","admin"] надёжнее)
-    class_id: int | None = None
+    class_id: str | None = None
 
 class ClassIn(BaseModel):
     grade: int

@@ -8,6 +8,7 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const canModerate = user?.role === "teacher" || user?.role === "admin";
+  const isAdmin = user?.role === "admin";
 
   return (
     <AppShell header={{ height: 56 }} navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !opened } }}>
@@ -40,6 +41,11 @@ export default function Layout() {
           onClick={() => { navigate("/duty"); toggle(); }}
         />
         <NavLink
+          label="Квесты"
+          active={location.pathname === "/quests"}
+          onClick={() => { navigate("/quests"); toggle(); }}
+        />
+        <NavLink
           label="Медиацентр"
           active={location.pathname === "/media"}
           onClick={() => { navigate("/media"); toggle(); }}
@@ -58,9 +64,16 @@ export default function Layout() {
         )}
         {canModerate && (
           <NavLink
-            label="Квесты"
+            label="Конструктор квестов"
             active={location.pathname === "/builder"}
             onClick={() => { navigate("/builder"); toggle(); }}
+          />
+        )}
+        {isAdmin && (
+          <NavLink
+            label="Администрирование"
+            active={location.pathname === "/admin"}
+            onClick={() => { navigate("/admin"); toggle(); }}
           />
         )}
       </AppShell.Navbar>

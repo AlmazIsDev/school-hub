@@ -276,3 +276,91 @@ async def test_stats_funnel(client, env):
     assert r.status_code == 403
     r = await client.get(f"/api/builder/quests/{qid}/stats", headers=_h(env["student"]))
     assert r.status_code == 403
+
+
+# ---------- веб-плеер ----------
+
+async def _pub_quest(client, env) -> str:
+    r = await client.post("/api/builder/quests", json=_quest_body(env), headers=_h(env["teacher"]))
+    qid = r.json()["id"]
+    await client.post(f"/api/builder/quests/{qid}/publish", headers=_h(env["teacher"]))
+    return qid
+
+
+async def test_play_start_answer(client, env):
+    qid = await _pub_quest(client, env)
+    r = await client.post(f"/api/builder/quests/{qid}/play/start", headers=_h(env["student"]))
+    assert r.status_code == 200
+    d = r.json()
+    assert d["block"]["type"] == "question" and d["block"]["id"] == "q1"
+    assert "condition" not in d["block"] and "score" not in d["block"]
+    r = await client.post(f"/api/builder/quests/{qid}/play/answer",
+                          json={"run_id": d["run_id"], "block_id": "q1", "value": "а"},
+                          headers=_h(env["student"]))
+    d2 = r.json()
+    assert d2["finished"] is True and d2["score"] == 10  # branch: ответ «а» → e1
+
+
+async def test_play_else_branch_and_hint(client, env):
+    qid = await _pub_quest(client, env)
+    d = (await client.post(f"/api/builder/quests/{qid}/play/start", headers=_h(env["student"]))).json()
+    r = await client.post(f"/api/builder/quests/{qid}/play/answer",
+                          json={"run_id": d["run_id"], "block_id": "q1", "value": "б"},
+                          headers=_h(env["student"]))
+    d2 = r.json()
+    assert d2["block"]["id"] == "h1" and d2["block"]["type"] == "hint"
+    r = await client.post(f"/api/builder/quests/{qid}/play/answer",
+                          json={"run_id": d["run_id"], "block_id": "h1"},
+                          headers=_h(env["student"]))
+    assert r.json()["finished"] is True
+
+
+async def test_play_guards(client, env):
+    qid = await _pub_quest(client, env)
+    # чужой класс
+    r = await client.post(f"/api/builder/quests/{qid}/play/start", headers=_h(env["alien_student"]))
+    assert r.status_code == 403
+    # неопубликованный
+    r = await client.post("/api/builder/quests", json=_quest_body(env), headers=_h(env["teacher"]))
+    draft = r.json()["id"]
+    r = await client.post(f"/api/builder/quests/{draft}/play/start", headers=_h(env["student"]))
+    assert r.status_code == 409
+    # неверный вариант
+    d = (await client.post(f"/api/builder/quests/{qid}/play/start", headers=_h(env["student"]))).json()
+    r = await client.post(f"/api/builder/quests/{qid}/play/answer",
+                          json={"run_id": d["run_id"], "block_id": "q1", "value": "ж"},
+                          headers=_h(env["student"]))
+    assert r.status_code == 422
+    # 422 не сдвинул trace — валидный ответ на тот же блок проходит
+    r = await client.post(f"/api/builder/quests/{qid}/play/answer",
+                          json={"run_id": d["run_id"], "block_id": "q1", "value": "а"},
+                          headers=_h(env["student"]))
+    assert r.status_code == 200
+    # ответ на уже завершённый run — 409
+    r = await client.post(f"/api/builder/quests/{qid}/play/answer",
+                          json={"run_id": d["run_id"], "block_id": "q1", "value": "а"},
+                          headers=_h(env["student"]))
+    assert r.status_code == 409
+
+
+async def test_play_answer_wrong_run_or_user(client, env):
+    qid = await _pub_quest(client, env)
+    d = (await client.post(f"/api/builder/quests/{qid}/play/start", headers=_h(env["student"]))).json()
+    # чужой пользователь
+    r = await client.post(f"/api/builder/quests/{qid}/play/answer",
+                          json={"run_id": d["run_id"], "block_id": "q1", "value": "а"},
+                          headers=_h(env["alien_student"]))
+    assert r.status_code == 404
+    # несуществующий run
+    r = await client.post(f"/api/builder/quests/{qid}/play/answer",
+                          json={"run_id": "0" * 24, "block_id": "q1", "value": "а"},
+                          headers=_h(env["student"]))
+    assert r.status_code == 404
+
+
+async def test_published_list_by_class(client, env):
+    qid = await _pub_quest(client, env)
+    r = await client.get("/api/builder/quests/published", headers=_h(env["student"]))
+    assert [q["id"] for q in r.json()] == [qid]
+    r = await client.get("/api/builder/quests/published", headers=_h(env["alien_student"]))
+    assert r.json() == []

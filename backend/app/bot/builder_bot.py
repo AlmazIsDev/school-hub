@@ -4,8 +4,8 @@ import random
 from datetime import datetime, timezone
 
 from ..core import redis as core_redis
+from ..modules.builder import service
 from ..modules.builder.models import Quest, QuestRun
-from ..modules.builder.quest_structure import QuestStructure
 from ..modules.users.models import User
 from .pulse_bot import _send
 
@@ -54,7 +54,12 @@ def _kb_next(block_id: str) -> str:
 
 
 def _blocks(quest: Quest) -> dict:
-    return {b["id"]: b for b in quest.structure["blocks"]}
+    return service.blocks_map(quest)
+
+
+def _next_block_id(quest: Quest, blocks: dict, block_id: str, last_value: str | None) -> str | None:
+    """Переход из блока; branch-резолв в общем сервисе."""
+    return service.resolve_next(blocks, block_id, last_value)
 
 
 async def handle_quest(event, vk):
