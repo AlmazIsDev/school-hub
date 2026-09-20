@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -172,3 +172,37 @@ async def list_completions(user_id: str | None = None,
     return [{"id": str(c.id), "schedule_id": c.schedule_id, "weekday": c.weekday,
              "slot": c.slot, "user_id": c.user_id, "date": c.date, "marked_at": c.marked_at}
             for c in await DutyCompletion.find(query).to_list()]
+
+
+@router.get("/stats")
+async def duty_stats(user_id: str | None = None, user: dict = Depends(get_current_user)):
+    """Сколько дежурил / сколько пропустил: прошедшие слоты графика
+    с момента его создания без отметки считаем пропущенными."""
+    target_id = user_id or user["id"]
+    if user["role"] not in ("teacher", "admin") and target_id != user["id"]:
+        raise HTTPException(403, "Нельзя смотреть чужую статистику")
+
+    today = datetime.now(timezone.utc).date()
+    done = missed = 0
+    for s in await DutySchedule.find(DutySchedule.week_pattern.user_id == target_id).to_list():
+        slots = [x for x in s.week_pattern if x.user_id == target_id]
+        completions = await DutyCompletion.find(
+            DutyCompletion.schedule_id == str(s.id),
+            DutyCompletion.user_id == target_id).to_list()
+        marked = {(c.weekday, c.slot, c.date.date()) for c in completions}
+        # слот начинает действовать с даты создания графика
+        start = s.created_at.date() if s.created_at else today
+        d = start
+        while d <= today:
+            if (d.weekday() + 1) in {x.weekday for x in slots}:
+                for x in slots:
+                    if x.weekday != d.weekday() + 1:
+                        continue
+                    if d == today:  # сегодня ещё можно отметить
+                        continue
+                    if (x.weekday, x.slot, d) in marked:
+                        done += 1
+                    else:
+                        missed += 1
+            d += timedelta(days=1)
+    return {"done": done, "missed": missed}

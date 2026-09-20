@@ -228,3 +228,37 @@ async def test_completions(client, tokens):
                          headers=_h(tokens["teacher"]))
     assert r.status_code == 200 and len(r.json()) == 1
     assert r.json()[0]["date"][:10] == "2026-09-21"
+
+
+async def test_duty_stats(client, tokens):
+    from datetime import datetime, timedelta, timezone
+    zone_id = (await client.post("/api/duty/zones", json={"name": "Z2"}, headers=_h(tokens["teacher"]))).json()["id"]
+    s1 = str((await User.find_one(User.role == "student")).id)
+    r = await client.post("/api/duty/schedules", headers=_h(tokens["teacher"]), json={
+        "zone_id": zone_id, "week_pattern": [{"weekday": 1, "slot": 2, "user_id": s1}]})
+    sched_id = r.json()["id"]
+
+    # график действует две недели
+    sched = await DutySchedule.get(sched_id)
+    today = datetime.now(timezone.utc).date()
+    sched.created_at = datetime.now(timezone.utc) - timedelta(days=14)
+    await sched.save()
+
+    # отметка за понедельник текущей недели
+    monday = today - timedelta(days=today.weekday())
+    r = await client.post("/api/duty/completions", headers=_h(tokens["student"]), json={
+        "schedule_id": sched_id, "weekday": 1, "slot": 2,
+        "date": monday.isoformat()})
+    assert r.status_code == 200
+
+    r = await client.get("/api/duty/stats", headers=_h(tokens["student"]))
+    assert r.status_code == 200
+    # прошедшие понедельники с момента создания графика: отмеченный — done,
+    # остальные — missed; сегодняшний день не считаем
+    mondays = []
+    d = today - timedelta(days=14)
+    while d <= today:
+        if d.weekday() == 0 and d != today:
+            mondays.append(d)
+        d += timedelta(days=1)
+    assert r.json() == {"done": 1, "missed": len(mondays) - 1}
