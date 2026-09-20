@@ -367,6 +367,9 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
   const [rooms, setRooms] = useState<Room[]>([]);
   const [drawing, setDrawing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [geometryMode, setGeometryMode] = useState(false);
+  const [geometryRoomId, setGeometryRoomId] = useState<string | null>(null);
+  const [geometryDirty, setGeometryDirty] = useState(false);
   const [editingRoomMode, setEditingRoomMode] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [draft, setDraft] = useState<[number, number][]>([]);
@@ -405,6 +408,11 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
       if (await act(() => apiFetch(`/nav/rooms/${room.id}`, { method: "DELETE" }), "Не удалось удалить комнату")) await refresh();
       return;
     }
+    if (geometryMode) {
+      setGeometryRoomId(room.id === geometryRoomId ? null : room.id);
+      setGeometryDirty(false);
+      return;
+    }
     if (editingRoomMode) {
       setEditingRoom(room);
       setRoomNumber(room.number);
@@ -439,8 +447,11 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
         <Button variant={deleting ? "filled" : "light"} color="red" onClick={() => { setDeleting(!deleting); setDrawing(false); setEditingRoomMode(false); setDraft([]); }}>
           {deleting ? "Режим удаления: вкл" : "Удалять комнаты кликом"}
         </Button>
-        <Button variant={editingRoomMode ? "filled" : "light"} onClick={() => { setEditingRoomMode(!editingRoomMode); setDrawing(false); setDeleting(false); setDraft([]); }}>
+        <Button variant={editingRoomMode ? "filled" : "light"} onClick={() => { setEditingRoomMode(!editingRoomMode); setDrawing(false); setDeleting(false); setGeometryMode(false); setDraft([]); }}>
           {editingRoomMode ? "Режим правки: вкл" : "Править комнаты кликом"}
+        </Button>
+        <Button variant={geometryMode ? "filled" : "light"} onClick={() => { setGeometryMode(!geometryMode); setDrawing(false); setDeleting(false); setEditingRoomMode(false); setDraft([]); setGeometryRoomId(null); setGeometryDirty(false); }}>
+          {geometryMode ? "Режим геометрии: вкл" : "Двигать/править форму"}
         </Button>
         <Button component="label" variant="light">
           {floor.plan_id ? "Заменить план" : "Загрузить план"}
@@ -476,16 +487,54 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
           onRoomClick={onRoomClick}
           onMapClick={onMapClick}
           draft={drawing ? draft : undefined}
+          editRoomId={geometryRoomId}
+          onGeometryChange={(roomId, geometry) => {
+            setRooms((rs) => rs.map((r) => (r.id === roomId ? { ...r, geometry } : r)));
+            setGeometryDirty(true);
+          }}
         />
       )}
       {drawing && !finishOpen && <Text size="sm" c="dimmed" mt="xs">Кликай по карте, чтобы ставить вершины полигона.</Text>}
+
+      {geometryMode && (
+        geometryRoomId ? (
+          <Group gap="sm" mt="xs">
+            <Button
+              disabled={!geometryDirty}
+              loading={busy}
+              onClick={async () => {
+                const room = rooms.find((r) => r.id === geometryRoomId)!;
+                if (await act(() =>
+                  apiFetch(`/nav/rooms/${room.id}`, {
+                    method: "PUT",
+                    body: JSON.stringify({
+                      floor_id: floor.id, number: room.number, name: room.name,
+                      geometry: room.geometry,
+                    }),
+                  }), "Не удалось сохранить геометрию")) {
+                  setGeometryDirty(false);
+                }
+              }}
+            >
+              Сохранить геометрию
+            </Button>
+            <Button variant="subtle" onClick={async () => { setGeometryRoomId(null); setGeometryDirty(false); await refresh(); }}>
+              Отменить правки
+            </Button>
+          </Group>
+        ) : (
+          <Text size="sm" c="dimmed" mt="xs">
+            Кликни по комнате, затем тяни её целиком или за вершины. Изменения применяются после «Сохранить».
+          </Text>
+        )
+      )}
 
       <Modal opened={editingRoom !== null} onClose={() => setEditingRoom(null)} title={`Кабинет ${editingRoom?.number ?? ""}`}>
         <Stack gap="sm">
           <TextInput label="Номер" value={roomNumber} onChange={(e) => setRoomNumber(e.currentTarget.value)} maxLength={32} required />
           <TextInput label="Название" value={roomName} onChange={(e) => setRoomName(e.currentTarget.value)} maxLength={200} />
           <Text size="sm" c="dimmed">
-            Геометрию не меняет: переместить кабинет — удали его и нарисуй заново.
+            Форму и положение меняет режим «Двигать/править форму».
           </Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setEditingRoom(null)}>Отмена</Button>

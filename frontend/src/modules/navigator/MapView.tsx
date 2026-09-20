@@ -22,21 +22,26 @@ type Props = {
   draft?: [number, number][];
   /** подсветить комнату (после поиска) и приблизить к ней */
   highlightRoomId?: string | null;
+  /** комната в режиме правки геометрии: перетаскивание целиком и вершин */
+  editRoomId?: string | null;
+  /** новая геометрия правленой комнаты (после dragend) */
+  onGeometryChange?: (roomId: string, geometry: Room["geometry"]) => void;
 };
 
 /**
  * Карта этажа на L.CRS.Simple: координаты — пиксели плана, [x, y] GeoJSON
  * маппится напрямую (GeoJSON [lng, lat] → Leaflet [lat, lng] = [y, x]).
  */
-export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft, highlightRoomId }: Props) {
+export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft, highlightRoomId, editRoomId, onGeometryChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const overlayRef = useRef<L.ImageOverlay | null>(null);
   const roomsLayerRef = useRef<L.GeoJSON | null>(null);
   const draftLayerRef = useRef<L.LayerGroup | null>(null);
+  const editLayerRef = useRef<L.LayerGroup | null>(null);
   // колбэки в ref, чтобы не пересоздавать обработчики карты при их смене
-  const cbRef = useRef({ onRoomClick, onMapClick });
-  useEffect(() => { cbRef.current = { onRoomClick, onMapClick }; });
+  const cbRef = useRef({ onRoomClick, onMapClick, onGeometryChange });
+  useEffect(() => { cbRef.current = { onRoomClick, onMapClick, onGeometryChange }; });
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -84,7 +89,11 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
         geometry: r.geometry,
       })) } as GeoJSON.FeatureCollection,
       {
-        style: () => ({ color: "#1971c2", weight: 2, fillOpacity: 0.25 }),
+        style: (feature) => ({
+          color: feature?.id === editRoomId ? "#f08c00" : "#1971c2",
+          weight: 2,
+          fillOpacity: 0.25,
+        }),
         onEachFeature: (feature, lyr) => {
           lyr.bindTooltip(`${feature.properties?.number} ${feature.properties?.name ?? ""}`);
           lyr.on("click", () => {
@@ -95,7 +104,70 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
       },
     ).addTo(map);
     roomsLayerRef.current = layer;
-  }, [rooms]);
+  }, [rooms, editRoomId]);
+
+  // правка геометрии: вершины-маркеры + перетаскивание полигона целиком
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = roomsLayerRef.current;
+    if (!map || !layer || !editRoomId) return;
+    editLayerRef.current?.remove();
+    editLayerRef.current = null;
+
+    type Placed = L.Path & { feature?: GeoJSON.Feature };
+    const lyr = layer.getLayers().find((l) => (l as Placed).feature?.id === editRoomId) as L.Polygon | undefined;
+    if (!lyr) return;
+
+    const geometryFrom = (latlngs: L.LatLng[]) => ({
+      type: "Polygon" as const,
+      coordinates: [latlngs.map((ll) => [Math.round(ll.lng * 100) / 100, Math.round(ll.lat * 100) / 100])],
+    });
+    const group = L.layerGroup().addTo(map);
+    editLayerRef.current = group;
+
+    // вершины: GeoJSON-кольцо замкнуто (первая точка = последняя), дубликат не рисуем
+    const ring = lyr.getLatLngs()[0] as L.LatLng[];
+    ring.slice(0, -1).forEach((_, i) => {
+      const m = L.marker(ring[i], {
+        draggable: true,
+        icon: L.divIcon({ className: "nv-vertex", iconSize: [12, 12] }),
+      });
+      m.on("drag", (e) => {
+        const pts = (lyr.getLatLngs()[0] as L.LatLng[]).slice();
+        pts[i] = (e.target as L.Marker).getLatLng();
+        // двигаем первую вершину — тянется замыкающая
+        if (i === 0) pts[pts.length - 1] = pts[0];
+        lyr.setLatLngs([pts]);
+      });
+      m.on("dragend", () => cbRef.current.onGeometryChange?.(editRoomId, geometryFrom(lyr.getLatLngs()[0] as L.LatLng[])));
+      group.addLayer(m);
+    });
+
+    // перетаскивание полигона целиком
+    let moving: { start: L.LatLng; orig: L.LatLng[] } | null = null;
+    const onMove = (e: L.LeafletMouseEvent) => {
+      if (!moving) return;
+      lyr.setLatLngs([moving.orig.map((ll) =>
+        L.latLng(ll.lat + e.latlng.lat - moving!.start.lat, ll.lng + e.latlng.lng - moving!.start.lng))]);
+    };
+    const onUp = () => {
+      if (!moving) return;
+      moving = null;
+      map.dragging.enable();
+      cbRef.current.onGeometryChange?.(editRoomId, geometryFrom(lyr.getLatLngs()[0] as L.LatLng[]));
+    };
+    lyr.on("mousedown", (e: L.LeafletMouseEvent) => {
+      moving = { start: e.latlng, orig: (lyr.getLatLngs()[0] as L.LatLng[]).map((ll) => ll.clone()) };
+      map.dragging.disable(); // иначе карту тянет вместо комнаты
+    });
+    map.on("mousemove", onMove);
+    map.on("mouseup", onUp);
+    return () => {
+      map.off("mousemove", onMove);
+      map.off("mouseup", onUp);
+      map.dragging.enable();
+    };
+  }, [rooms, editRoomId]);
 
   // превью рисуемого полигона
   useEffect(() => {
@@ -123,5 +195,11 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
     mapRef.current?.fitBounds(lyr.getBounds(), { maxZoom: 0 });
   }, [highlightRoomId, rooms]);
 
-  return <div ref={containerRef} style={{ height: 480, border: "1px solid #dee2e6", borderRadius: 8 }} />;
+  return (
+    <>
+      {/* маркер-вершина в режиме правки геометрии */}
+      <style>{`.nv-vertex { background: #f08c00; border: 2px solid #fff; border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.4); }`}</style>
+      <div ref={containerRef} style={{ height: 480, border: "1px solid #dee2e6", borderRadius: 8 }} />
+    </>
+  );
 }
