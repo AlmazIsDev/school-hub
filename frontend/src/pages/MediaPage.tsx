@@ -46,8 +46,25 @@ function toDateInput(iso: string | null): string {
   return iso ? iso.slice(0, 10) : "";
 }
 
+// Мини-markdown без зависимости: **жирный**, *курсив*, `код`, [текст](url).
+// Сначала экранируем HTML, потом вставляем разметку — XSS-безопасно.
+function renderMarkdown(src: string): string {
+  const esc = src
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const md = esc
+    .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
+    .replace(/\*([^*\n]+)\*/g, "<i>$1</i>")
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  return md;
+}
+
 function PostBody({ text }: { text: string }) {
-  return <div style={{ whiteSpace: "pre-wrap" }}>{text}</div>;
+  return (
+    <div style={{ whiteSpace: "pre-wrap" }}
+      dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />
+  );
 }
 
 export default function MediaPage() {
