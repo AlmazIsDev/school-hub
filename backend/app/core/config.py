@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     admin_login: str = "admin"
     admin_password: str = ""  # пусто — админ не создаётся
     admin_name: str = "Администратор"
+    frontend_url: str = ""  # для ссылок из бота, пусто — без ссылок
 
     model_config = {"env_file": ".env"}
 

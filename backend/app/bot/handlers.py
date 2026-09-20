@@ -1,5 +1,5 @@
 from ..modules.users import service
-from . import bridge_bot, builder_bot, codes, duty_bot, media_bot, pulse_bot
+from . import bridge_bot, builder_bot, codes, duty_bot, media_bot, navigator_bot, pulse_bot
 
 
 def register(dp):
@@ -20,6 +20,7 @@ def register(dp):
             "дежурство — ближайший слот дежурства\n"
             "квест — пройти квест своего класса\n"
             "идея <текст> — предложить тему редакции\n"
+            "где <кабинет> — найти кабинет (этаж и здание)\n"
             "отмена — прервать текущий сценарий\n"
             "help — этот список\n\n"
             "Код для привязки берётся в профиле на сайте.",
@@ -128,6 +129,10 @@ def register(dp):
     @dp.on(r"^идея\s+(.+)$")
     async def idea(event, vk):
         await media_bot.handle_idea(event, vk)
+
+    @dp.on(r"^где\s+(.+)$")
+    async def where(event, vk):
+        await navigator_bot.handle_where(event, vk)
 
     # catch-all последним: кнопки опроса и bridge-сценариев (payload),
     # свободные ответы. Сценарии взаимоисключающие (разные state-ключи):
