@@ -211,6 +211,18 @@ async def test_results_partial_completion(client, db):
     assert data["started"] == 2 and data["completed"] == 1
 
 
+async def test_results_csv_export(client, db):
+    h = {"Authorization": f"Bearer {await _mk_user('t14', 'teacher')}"}
+    pid = await _mk_poll_full(client, h, await _mk_class())
+    await _answer(pid, 0, "5"); await _answer(pid, 0, "5")
+    r = await client.get(f"/api/pulse/polls/{pid}/results.csv", headers=h)
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/csv")
+    assert "attachment" in r.headers["content-disposition"]
+    body = r.content.decode("utf-8-sig")
+    assert "Как дела?" in body and "5;2" in body
+
+
 async def test_results_student_403(client, db):
     th = {"Authorization": f"Bearer {await _mk_user('t12', 'teacher')}"}
     sh = {"Authorization": f"Bearer {await _mk_user('s10', 'student')}"}

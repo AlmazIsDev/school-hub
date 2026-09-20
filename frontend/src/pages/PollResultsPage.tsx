@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Card, Group, Stack, Table, Text, Title, Badge, Paper } from "@mantine/core";
+import { Button, Card, Group, Stack, Table, Text, Title, Badge, Paper } from "@mantine/core";
 import { useParams } from "react-router-dom";
-import { apiFetch } from "../api";
+import { apiBlob, apiFetch } from "../api";
 
 type QuestionType = "scale1_5" | "free_text";
 
@@ -51,11 +51,24 @@ export default function PollResultsPage() {
   if (error) return <div role="alert">{error}</div>;
   if (!results) return <Text>Загрузка...</Text>;
 
+  async function downloadCsv() {
+    const blob = await apiBlob(`/pulse/polls/${id}/results.csv`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `poll-${id}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <Stack gap="md">
       <Group justify="space-between">
         <Title order={1} size="h2">{results.poll.title}</Title>
-        <Badge color="gray">{results.poll.topic}</Badge>
+        <Group>
+          <Badge color="gray">{results.poll.topic}</Badge>
+          <Button variant="light" onClick={downloadCsv}>Скачать CSV</Button>
+        </Group>
       </Group>
       <Text c="dimmed">
         Начали: {results.started} · Прошли полностью: {results.completed}

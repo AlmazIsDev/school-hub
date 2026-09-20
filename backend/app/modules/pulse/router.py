@@ -1,10 +1,14 @@
+import csv
+import io
 import json
 import logging
+from collections import Counter
 from datetime import datetime, timezone
 
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 
 from ...core import redis as core_redis
 from ...core.security import get_current_user, require_role
@@ -148,6 +152,36 @@ async def poll_results(poll_id: str, user: dict = Depends(require_role("teacher"
         "started": started,
         "questions": questions,
     }
+
+
+@router.get("/polls/{poll_id}/results.csv")
+async def poll_results_csv(poll_id: str, user: dict = Depends(require_role("teacher", "admin"))):
+    """CSV для Excel: ; и BOM, ответы анонимны — агрегаты по вопросам."""
+    poll = await get_poll(poll_id)
+    if not _can_manage(poll, user):
+        raise HTTPException(403, "Не ваш опрос")
+    answers = await PollAnswer.find(PollAnswer.poll_id == poll_id).to_list()
+
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=";", lineterminator="\n")
+    w.writerow(["Опрос", poll.title, "Тема", poll.topic, "Статус", poll.status])
+    w.writerow([])
+    w.writerow(["Вопрос", "Тип", "Ответ", "Количество"])
+    for idx, q in enumerate(poll.questions):
+        values = [a.value for a in answers if a.question_idx == idx]
+        if q.type == "scale1_5":
+            counts = Counter(v for v in values if v in {"1", "2", "3", "4", "5"})
+            for v in "12345":
+                w.writerow([q.text, q.type, v, counts.get(v, 0)])
+        else:
+            for v in values:
+                w.writerow([q.text, q.type, v, 1])
+    # utf-8-sig, чтобы Excel открывал кириллицу без настроек
+    return Response(
+        content=buf.getvalue().encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition":
+                 f'attachment; filename="poll-{poll_id}.csv"'})
 
 
 @router.get("/topics")
