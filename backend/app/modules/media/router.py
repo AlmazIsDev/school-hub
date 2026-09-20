@@ -103,22 +103,20 @@ async def list_ideas(status: str | None = None,
     return [_idea_out(i) for i in await query.to_list()]
 
 
-async def _resolve_idea(idea_id: str) -> PostIdea:
-    # ponytail: check-then-save — параллельные accept дадут два поста; лечится
-    # find_one_and_update с условием status=new, на демо-объёмах не нужно
-    idea = await PostIdea.get(_oid(idea_id))
-    if not idea:
-        raise HTTPException(404, "Идея не найдена")
-    if idea.status != "new":
-        raise HTTPException(409, "Идея уже обработана")
-    return idea
+async def _claim_idea(idea_id: str, new_status: str) -> PostIdea:
+    # атомарно забираем идею: условие status=new в фильтре самого update,
+    # параллельный клик получит matched_count=0 и 409 вместо второго поста
+    res = await PostIdea.find_one(
+        PostIdea.id == _oid(idea_id), PostIdea.status == "new"
+    ).update({"$set": {"status": new_status}})
+    if not res.matched_count:
+        raise HTTPException(409, "Идея не найдена или уже обработана")
+    return await PostIdea.get(_oid(idea_id))
 
 
 @router.post("/ideas/{idea_id}/accept")
 async def accept_idea(idea_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    idea = await _resolve_idea(idea_id)
-    idea.status = "accepted"
-    await idea.save()
+    idea = await _claim_idea(idea_id, "accepted")
     post = Post(title=idea.text[:60], body=idea.text)
     await post.insert()
     return {"idea": _idea_out(idea), "post": _post_out(post)}
@@ -126,7 +124,5 @@ async def accept_idea(idea_id: str, user: dict = Depends(require_role("teacher",
 
 @router.post("/ideas/{idea_id}/reject")
 async def reject_idea(idea_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    idea = await _resolve_idea(idea_id)
-    idea.status = "rejected"
-    await idea.save()
+    idea = await _claim_idea(idea_id, "rejected")
     return _idea_out(idea)

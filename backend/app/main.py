@@ -35,6 +35,15 @@ def create_app() -> FastAPI:
             extra={"duration_ms": round((time.perf_counter() - t) * 1000, 1)})
         return response
 
+    from fastapi.responses import JSONResponse
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        # наружу — без стека, в лог — со стеком и request_id
+        logging.getLogger("api").exception(
+            "unhandled: %s %s", request.method, request.url.path)
+        return JSONResponse(status_code=500, content={"detail": "Внутренняя ошибка сервера"})
+
     from .modules.users.router import router as users_router
     app.include_router(users_router)
     from .modules.admin.router import router as admin_router

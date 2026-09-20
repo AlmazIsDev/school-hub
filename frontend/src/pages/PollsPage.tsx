@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, Group, NativeSelect, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Badge, Button, Card, Group, NativeSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../api";
 import { useAuth } from "../auth";
@@ -58,6 +58,7 @@ export default function PollsPage() {
 
   // аналитика
   const [weak, setWeak] = useState<WeakTopic[]>([]);
+  const [threshold, setThreshold] = useState(3.5);
   const [compareA, setCompareA] = useState("");
   const [compareB, setCompareB] = useState("");
   const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
@@ -74,8 +75,8 @@ export default function PollsPage() {
   useEffect(() => {
     refresh();
     apiFetch<SchoolClass[]>("/classes").then(setClasses).catch(() => {});
-    if (canManage) apiFetch<WeakTopic[]>("/pulse/topics").then(setWeak).catch(() => {});
-  }, []);
+    if (canManage) apiFetch<WeakTopic[]>(`/pulse/topics?threshold=${threshold}`).then(setWeak).catch(() => {});
+  }, [canManage, threshold]);
 
   function setQuestion(i: number, patch: Partial<Question>) {
     setQuestions((qs) => qs.map((q, idx) => (idx === i ? { ...q, ...patch } : q)));
@@ -239,10 +240,22 @@ export default function PollsPage() {
         </Table>
       )}
 
-      {canManage && weak.length > 0 && (
+      {canManage && (
         <Card withBorder>
           <Stack gap="sm">
-            <Title order={2} size="h3">Просевшие темы (средняя ниже 3.5)</Title>
+            <Group justify="space-between" align="flex-end">
+              <Title order={2} size="h3">Просевшие темы (средняя ниже {threshold})</Title>
+              <NumberInput
+                label="Порог"
+                min={0.5}
+                max={5}
+                step={0.5}
+                w={120}
+                value={threshold}
+                onChange={(v) => setThreshold(typeof v === "number" ? v : 3.5)}
+              />
+            </Group>
+            {weak.length === 0 && <Text c="dimmed" size="sm">Всё в порядке — просевших тем нет.</Text>}
             <Table withTableBorder verticalSpacing="xs">
               <Table.Thead>
                 <Table.Tr>

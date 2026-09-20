@@ -208,6 +208,8 @@ async def quest_stats(quest_id: str, user: dict = Depends(require_role("teacher"
     started = len(runs)
     finished = sum(1 for r in runs if r.finished)
     scores = [r.score for r in runs if r.finished]
+    durations = [ (r.finished_at - r.started_at).total_seconds()
+                  for r in runs if r.finished and r.finished_at ]
     # стартовый блок засчитан всем, дальше — по факту попадания в trace
     trace_ids = [set(step.get("block_id") for step in r.trace) for r in runs]
     funnel = []
@@ -218,4 +220,5 @@ async def quest_stats(quest_id: str, user: dict = Depends(require_role("teacher"
         funnel.append({"block_id": b["id"], "type": b["type"], "reached": reached})
     return {"runs": started, "finished": finished,
             "avg_score": round(sum(scores) / len(scores), 2) if scores else None,
+            "avg_duration_sec": round(sum(durations) / len(durations)) if durations else None,
             "funnel": funnel}

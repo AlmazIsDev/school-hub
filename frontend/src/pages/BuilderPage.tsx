@@ -35,6 +35,7 @@ type Stats = {
   runs: number;
   finished: number;
   avg_score: number | null;
+  avg_duration_sec: number | null;
   funnel: { block_id: string; type: BlockType; reached: number }[];
 };
 
@@ -301,6 +302,12 @@ export default function BuilderPage() {
     );
   }
 
+  function formatDuration(sec: number) {
+    const m = Math.floor(sec / 60);
+    const s = Math.round(sec % 60);
+    return m > 0 ? `${m} мин ${s} с` : `${s} с`;
+  }
+
   function renderStats() {
     if (!statsQuest) return null;
     const started = stats?.runs ?? 0;
@@ -318,6 +325,7 @@ export default function BuilderPage() {
               <Text>Дошли до конца: <b>{stats.finished}</b></Text>
               <Text>Бросили на середине: <b>{stats.runs - stats.finished}</b></Text>
               <Text>Средний балл: <b>{stats.avg_score ?? "—"}</b></Text>
+              <Text>Среднее время: <b>{stats.avg_duration_sec ? formatDuration(stats.avg_duration_sec) : "—"}</b></Text>
             </Group>
             <Table withTableBorder verticalSpacing="xs" maw={560}>
               <Table.Thead>
