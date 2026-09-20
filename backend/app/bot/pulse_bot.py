@@ -97,6 +97,29 @@ async def on_published(payload: dict, vk):
     await poll.save()
 
 
+async def handle_poll_command(event, vk):
+    """«опрос» — активные опросы класса по запросу (могли пропустить рассылку)."""
+    u = await User.find_one(User.vk_id == event["vk_user_id"])
+    if not u or u.role != "student" or not u.class_id:
+        await _send(vk, event["peer_id"], "Опросы доступны ученикам после привязки аккаунта.")
+        return
+    active = await Poll.find(Poll.class_id == u.class_id, Poll.status == "active").to_list()
+    if not active:
+        await _send(vk, event["peer_id"], "Активных опросов сейчас нет.")
+        return
+    # анонимные ответы: факт ответа живёт в redis-дедупе answered:{poll}:{vk}
+    r = _r()
+    pending = [p for p in active if not await r.exists(f"answered:{p.id}:{u.vk_id}")]
+    if not pending:
+        await _send(vk, event["peer_id"], "Ты уже ответил(а) во всех активных опросах. Спасибо!")
+        return
+    if len(pending) == 1:
+        await start_poll(vk, event["vk_user_id"], pending[0])
+        return
+    await _send(vk, event["peer_id"],
+                "Активные опросы:\n" + "\n".join(f"• {p.title}" for p in pending))
+
+
 async def catch_up_unnotified(vk):
     """Догонялка при старте бота: события poll.published, потерянные
     пока бот был выключен (pub/sub без персистентности)."""

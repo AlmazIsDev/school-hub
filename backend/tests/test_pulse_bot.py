@@ -105,6 +105,42 @@ async def _insert_class() -> SchoolClass:
     return c
 
 
+async def test_poll_command_starts_single_pending(db, fake_redis, vk):
+    cid = str((await _insert_class()).id)
+    await _mk_student(vk_id=100, class_id=cid)
+    await _mk_poll(cid, [{"text": "Как дела?", "type": "scale1_5"}])
+
+    await pulse_bot.handle_poll_command({"vk_user_id": 100, "peer_id": 100}, vk)
+
+    # единственный незотвеченный опрос стартует сразу, с первого вопроса
+    assert any("Вопрос 1/1" in c["message"] for c in vk.calls if "message" in c)
+
+
+async def test_poll_command_lists_many(db, fake_redis, vk):
+    cid = str((await _insert_class()).id)
+    await _mk_student(vk_id=100, class_id=cid)
+    await _mk_poll(cid, [{"text": "q", "type": "scale1_5"}])
+    poll2 = await _mk_poll(cid, [{"text": "q", "type": "scale1_5"}])
+    poll2.title = "Второй"
+    await poll2.save()
+
+    await pulse_bot.handle_poll_command({"vk_user_id": 100, "peer_id": 100}, vk)
+
+    listing = [c["message"] for c in vk.calls if "message" in c][0]
+    assert "Активные опросы" in listing and "Второй" in listing
+
+
+async def test_poll_command_all_answered(db, fake_redis, vk):
+    cid = str((await _insert_class()).id)
+    await _mk_student(vk_id=100, class_id=cid)
+    poll = await _mk_poll(cid, [{"text": "q", "type": "scale1_5"}])
+    fake_redis.data[f"answered:{poll.id}:100"] = "1"
+
+    await pulse_bot.handle_poll_command({"vk_user_id": 100, "peer_id": 100}, vk)
+
+    assert any("уже ответил" in c["message"] for c in vk.calls if "message" in c)
+
+
 async def test_scale_flow_two_questions_and_finish(db, fake_redis, vk):
     c = await _insert_class()
     cid = str(c.id)

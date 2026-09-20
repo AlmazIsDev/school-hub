@@ -19,6 +19,7 @@ def register(dp):
             "пожаловаться — жалоба на напарника (только в паре)\n"
             "дежурство — ближайший слот дежурства\n"
             "квест — пройти квест своего класса\n"
+            "опрос — активные опросы твоего класса\n"
             "идея <текст> — предложить тему редакции\n"
             "где <кабинет> — найти кабинет (этаж и здание)\n"
             "отмена — прервать текущий сценарий\n"
@@ -125,6 +126,10 @@ def register(dp):
     @dp.on(r"^/?(?:квест|квесты)$")
     async def quest(event, vk):
         await builder_bot.handle_quest(event, vk)
+
+    @dp.on(r"^/?(?:опрос|опросы)$")
+    async def poll_cmd(event, vk):
+        await pulse_bot.handle_poll_command(event, vk)
 
     @dp.on(r"^идея\s+(.+)$")
     async def idea(event, vk):
