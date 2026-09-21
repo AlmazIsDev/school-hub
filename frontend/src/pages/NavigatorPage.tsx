@@ -347,7 +347,10 @@ function FloorsEditor({ buildingId, act, busy }: { buildingId: string; act: Act;
                   </Button>
                   <Button size="xs" variant="subtle" color="red"
                     onClick={async () => {
-                      if (await act(() => apiFetch(`/nav/floors/${f.id}`, { method: "DELETE" }), "Не удалось удалить этаж")) await refresh();
+                      if (await act(() => apiFetch(`/nav/floors/${f.id}`, { method: "DELETE" }), "Не удалось удалить этаж")) {
+                        if (f.id === floorId) setFloorId(null); // иначе висит ссылка на удалённый
+                        await refresh();
+                      }
                     }}>
                     Удалить
                   </Button>
@@ -358,7 +361,11 @@ function FloorsEditor({ buildingId, act, busy }: { buildingId: string; act: Act;
           {floors.length === 0 && <Table.Tr><Table.Td colSpan={3} c="dimmed">Этажей пока нет.</Table.Td></Table.Tr>}
         </Table.Tbody>
       </Table>
-      {floorId && <FloorEditor key={floorId} floor={floors.find((f) => f.id === floorId)!} act={act} busy={busy} refreshFloors={refresh} />}
+      {/* этаж мог удалиться (или ещё грузиться) — рендерим только существующий */}
+      {(() => {
+        const f = floors.find((x) => x.id === floorId);
+        return f ? <FloorEditor key={f.id} floor={f} act={act} busy={busy} refreshFloors={refresh} /> : null;
+      })()}
     </Stack>
   );
 }
