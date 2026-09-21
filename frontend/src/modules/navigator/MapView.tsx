@@ -1,6 +1,4 @@
-import { useEffect, useRef } from "react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { useEffect, useRef, useState } from "react";
 
 export type Room = {
   id: string;
@@ -14,219 +12,219 @@ type Props = {
   /** objectURL плана или null */
   planUrl: string | null;
   rooms: Room[];
-  /** клик по комнате (в редакторе — удаление) */
+  /** клик по комнате */
   onRoomClick?: (room: Room) => void;
-  /** клик по карте в режиме рисования, [x, y] */
+  /** клик по фону в режиме рисования, [x, y] */
   onMapClick?: (point: [number, number]) => void;
   /** вершины рисуемого полигона, [x, y] */
   draft?: [number, number][];
-  /** подсветить комнату (после поиска) и приблизить к ней */
+  /** подсветить комнату (после поиска) */
   highlightRoomId?: string | null;
   /** комната в режиме правки геометрии: перетаскивание целиком и вершин */
   editRoomId?: string | null;
-  /** новая геометрия правленой комнаты (после dragend) */
+  /** новая геометрия правленой комнаты (после отпускания кнопки) */
   onGeometryChange?: (roomId: string, geometry: Room["geometry"]) => void;
 };
 
+/** Сетка и магнит в пикселях плана: рука не рисует кривые школы. */
+const GRID = 10;
+const SNAP_PX = 12;
+
 /**
- * Карта этажа на L.CRS.Simple: координаты — пиксели плана, [x, y] GeoJSON
- * маппится напрямую (GeoJSON [lng, lat] → Leaflet [lat, lng] = [y, x]).
+ * Карта этажа на чистом SVG: координаты — пиксели плана, GeoJSON [x, y]
+ * рисуется напрямую. Вся картина масштабируется под контейнер.
  */
 export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft, highlightRoomId, editRoomId, onGeometryChange }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const overlayRef = useRef<L.ImageOverlay | null>(null);
-  const roomsLayerRef = useRef<L.GeoJSON | null>(null);
-  const draftLayerRef = useRef<L.LayerGroup | null>(null);
-  const editLayerRef = useRef<L.LayerGroup | null>(null);
-  // колбэки в ref, чтобы не пересоздавать обработчики карты при их смене
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [planSize, setPlanSize] = useState({ w: 1000, h: 1000 });
+  // геометрия редактируемой комнаты на время драга, между pointermove и обновлением props
+  const [editGeom, setEditGeom] = useState<number[][] | null>(null);
+  const dragRef = useRef<
+    | { kind: "move"; startX: number; startY: number; orig: number[][] }
+    | { kind: "vertex"; i: number }
+    | null
+  >(null);
   const cbRef = useRef({ onRoomClick, onMapClick, onGeometryChange });
   useEffect(() => { cbRef.current = { onRoomClick, onMapClick, onGeometryChange }; });
 
+  // размеры плана — для viewBox
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, { crs: L.CRS.Simple, minZoom: -3 });
-    L.control.scale({ imperial: false }).addTo(map);
-    map.on("click", (e: L.LeafletMouseEvent) => {
-      cbRef.current.onMapClick?.([e.latlng.lng, e.latlng.lat]);
-    });
-    mapRef.current = map;
-    return () => { map.remove(); mapRef.current = null; };
-  }, []);
-
-  // план: размеры берём из самого изображения (SVG без width — фолбэк 1000x1000)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    overlayRef.current?.remove();
-    overlayRef.current = null;
-    if (!planUrl) { map.setView([0, 0], -1); return; }
+    if (!planUrl) { setPlanSize({ w: 1000, h: 1000 }); return; }
     let cancelled = false;
     const img = new Image();
     img.onload = () => {
-      // план мог смениться, пока картинка декодировалась
-      if (cancelled || !mapRef.current) return;
-      const w = img.naturalWidth || 1000;
-      const h = img.naturalHeight || 1000;
-      overlayRef.current = L.imageOverlay(planUrl, [[0, 0], [h, w]]).addTo(map);
-      map.fitBounds([[0, 0], [h, w]]);
+      if (cancelled) return;
+      setPlanSize({ w: img.naturalWidth || 1000, h: img.naturalHeight || 1000 });
     };
     img.src = planUrl;
     return () => { cancelled = true; };
   }, [planUrl]);
 
-  // комнаты
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    roomsLayerRef.current?.remove();
-    if (rooms.length === 0) { roomsLayerRef.current = null; return; }
-    const layer = L.geoJSON(
-      { type: "FeatureCollection", features: rooms.map((r) => ({
-        type: "Feature",
-        id: r.id,
-        properties: { number: r.number, name: r.name },
-        geometry: r.geometry,
-      })) } as GeoJSON.FeatureCollection,
-      {
-        style: (feature) => ({
-          color: feature?.id === editRoomId ? "#f08c00" : "#1971c2",
-          weight: 2,
-          fillOpacity: 0.25,
-        }),
-        onEachFeature: (feature, lyr) => {
-          lyr.bindTooltip(`${feature.properties?.number} ${feature.properties?.name ?? ""}`);
-          lyr.on("click", () => {
-            const room = rooms.find((r) => r.id === feature.id);
-            if (room) cbRef.current.onRoomClick?.(room);
-          });
-        },
-      },
-    ).addTo(map);
-    roomsLayerRef.current = layer;
-  }, [rooms, editRoomId]);
+  const { w, h } = planSize;
+  const editing = Boolean(editRoomId && onGeometryChange);
+  const showGrid = Boolean(onMapClick || editing);
 
-  // правка геометрии: вершины-маркеры + перетаскивание полигона целиком
-  useEffect(() => {
-    const map = mapRef.current;
-    const layer = roomsLayerRef.current;
-    if (!map || !layer || !editRoomId) return;
-    editLayerRef.current?.remove();
-    editLayerRef.current = null;
+  // вершины соседних комнат для магнита (только в режиме правки)
+  const others: [number, number][] = editing
+    ? rooms.filter((r) => r.id !== editRoomId).flatMap((r) => r.geometry.coordinates[0] as [number, number][])
+    : [];
 
-    type Placed = L.Path & { feature?: GeoJSON.Feature };
-    const lyr = layer.getLayers().find((l) => (l as Placed).feature?.id === editRoomId) as L.Polygon | undefined;
-    if (!lyr) return;
+  function snap(x: number, y: number): [number, number] {
+    let bx = Math.round(x / GRID) * GRID, by = Math.round(y / GRID) * GRID, best = SNAP_PX;
+    for (const [ox, oy] of others) {
+      const d = Math.hypot(ox - x, oy - y);
+      if (d < best) { best = d; bx = ox; by = oy; }
+    }
+    return [bx, by];
+  }
 
-    const geometryFrom = (latlngs: L.LatLng[]) => ({
-      type: "Polygon" as const,
-      coordinates: [latlngs.map((ll) => [Math.round(ll.lng * 100) / 100, Math.round(ll.lat * 100) / 100])],
+  function clientToPlan(e: React.PointerEvent | React.MouseEvent): [number, number] {
+    const svg = svgRef.current!;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM()!.inverse());
+    return [p.x, p.y];
+  }
+
+  function onBackgroundClick(e: React.MouseEvent) {
+    if (!cbRef.current.onMapClick) return;
+    const [x, y] = clientToPlan(e);
+    // рисование по сетке: клик прилипает сразу
+    cbRef.current.onMapClick([Math.round(x / GRID) * GRID, Math.round(y / GRID) * GRID]);
+  }
+
+  function onVertexDown(i: number) {
+    return (e: React.PointerEvent) => {
+      e.stopPropagation();
+      dragRef.current = { kind: "vertex", i };
+      svgRef.current?.setPointerCapture(e.pointerId);
+    };
+  }
+
+  function onRoomBodyDown(e: React.PointerEvent) {
+    if (!editing) return;
+    e.stopPropagation();
+    const orig = (editGeom ?? editedRoom?.geometry.coordinates[0] ?? []).map((p) => [...p]);
+    const [x, y] = clientToPlan(e);
+    dragRef.current = { kind: "move", startX: x, startY: y, orig };
+    svgRef.current?.setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const [x, y] = clientToPlan(e);
+    if (drag.kind === "move") {
+      const target = snap(drag.orig[0][0] + x - drag.startX, drag.orig[0][1] + y - drag.startY);
+      const dx = target[0] - drag.orig[0][0];
+      const dy = target[1] - drag.orig[0][1];
+      setEditGeom(drag.orig.map(([px, py]) => [px + dx, py + dy]));
+    } else {
+      const ring = editGeom ?? editedRoom?.geometry.coordinates[0] ?? [];
+      const pts = ring.map((p) => [...p]);
+      const [sx, sy] = snap(x, y);
+      pts[drag.i] = [sx, sy];
+      if (drag.i === 0) pts[pts.length - 1] = [sx, sy]; // замыкающая тянется с первой
+      setEditGeom(pts);
+    }
+  }
+
+  function onPointerUp() {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag || !editGeom) return;
+    cbRef.current.onGeometryChange?.(editRoomId!, {
+      type: "Polygon",
+      coordinates: [editGeom],
     });
+    setEditGeom(null); // props обновятся из родителя той же геометрией
+  }
 
-    // магнит: к вершинам соседних комнат в радиусе SNAP_PX, иначе к сетке 1px.
-    // Пересечения полигонов не проверяем — снап закрывает стыковку стен,
-    // произвольные наложения остаются на совести рисующего
-    const SNAP_PX = 8;
-    const others: [number, number][] = rooms
-      .filter((r) => r.id !== editRoomId)
-      .flatMap((r) => r.geometry.coordinates[0] as [number, number][]);
-    const snap = (x: number, y: number): [number, number] => {
-      let bx = Math.round(x), by = Math.round(y), best = SNAP_PX;
-      for (const [ox, oy] of others) {
-        const d = Math.hypot(ox - x, oy - y);
-        if (d < best) { best = d; bx = ox; by = oy; }
-      }
-      return [bx, by];
-    };
-    const snapLatLng = (ll: L.LatLng) => {
-      const [x, y] = snap(ll.lng, ll.lat);
-      return L.latLng(y, x);
-    };
-    const group = L.layerGroup().addTo(map);
-    editLayerRef.current = group;
-
-    // вершины: GeoJSON-кольцо замкнуто (первая точка = последняя), дубликат не рисуем
-    const ring = lyr.getLatLngs()[0] as L.LatLng[];
-    ring.slice(0, -1).forEach((_, i) => {
-      const m = L.marker(ring[i], {
-        draggable: true,
-        icon: L.divIcon({ className: "nv-vertex", iconSize: [12, 12] }),
-      });
-      m.on("drag", (e) => {
-        const pts = (lyr.getLatLngs()[0] as L.LatLng[]).slice();
-        const snapped = snapLatLng((e.target as L.Marker).getLatLng());
-        pts[i] = snapped;
-        (e.target as L.Marker).setLatLng(snapped); // маркер прилипает к сетке/вершине
-        // двигаем первую вершину — тянется замыкающая
-        if (i === 0) pts[pts.length - 1] = pts[0];
-        lyr.setLatLngs([pts]);
-      });
-      m.on("dragend", () => cbRef.current.onGeometryChange?.(editRoomId, geometryFrom(lyr.getLatLngs()[0] as L.LatLng[])));
-      group.addLayer(m);
-    });
-
-    // перетаскивание полигона целиком: магнит считаем по «якорной» первой вершине,
-    // весь полигон сдвигается на snapped - orig — комната стыкуется углами
-    let moving: { start: L.LatLng; orig: L.LatLng[] } | null = null;
-    const onMove = (e: L.LeafletMouseEvent) => {
-      if (!moving) return;
-      const anchor = moving.orig[0];
-      const target = snapLatLng(L.latLng(
-        anchor.lat + e.latlng.lat - moving.start.lat,
-        anchor.lng + e.latlng.lng - moving.start.lng));
-      lyr.setLatLngs([moving.orig.map((ll) =>
-        L.latLng(ll.lat + target.lat - anchor.lat, ll.lng + target.lng - anchor.lng))]);
-    };
-    const onUp = () => {
-      if (!moving) return;
-      moving = null;
-      map.dragging.enable();
-      cbRef.current.onGeometryChange?.(editRoomId, geometryFrom(lyr.getLatLngs()[0] as L.LatLng[]));
-    };
-    lyr.on("mousedown", (e: L.LeafletMouseEvent) => {
-      moving = { start: e.latlng, orig: (lyr.getLatLngs()[0] as L.LatLng[]).map((ll) => ll.clone()) };
-      map.dragging.disable(); // иначе карту тянет вместо комнаты
-    });
-    map.on("mousemove", onMove);
-    map.on("mouseup", onUp);
-    return () => {
-      map.off("mousemove", onMove);
-      map.off("mouseup", onUp);
-      map.dragging.enable();
-    };
-  }, [rooms, editRoomId]);
-
-  // превью рисуемого полигона
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    draftLayerRef.current?.remove();
-    draftLayerRef.current = null;
-    if (!draft || draft.length === 0) return;
-    const latlngs = draft.map(([x, y]) => L.latLng(y, x));
-    const group = L.layerGroup([L.polyline(draft.length >= 3 ? [...latlngs, latlngs[0]] : latlngs, { color: "#f08c00" })]).addTo(map);
-    latlngs.forEach((ll) => group.addLayer(L.circleMarker(ll, { radius: 4, color: "#f08c00" })));
-    draftLayerRef.current = group;
-  }, [draft]);
-
-  // подсветка после поиска
-  useEffect(() => {
-    const layer = roomsLayerRef.current;
-    if (!layer || !highlightRoomId) return;
-    type Placed = L.Path & { feature?: GeoJSON.Feature };
-    const lyr = layer.getLayers().find((l) => (l as Placed).feature?.id === highlightRoomId) as L.Polygon | undefined;
-    if (!lyr) return;
-    layer.eachLayer((l) => (l as L.Path).setStyle(l === lyr
-      ? { color: "#f08c00", fillOpacity: 0.45 }
-      : { color: "#1971c2", fillOpacity: 0.25 }));
-    mapRef.current?.fitBounds(lyr.getBounds(), { maxZoom: 0 });
-  }, [highlightRoomId, rooms]);
+  const editedRoom = rooms.find((r) => r.id === editRoomId) ?? null;
+  const editedRing = editGeom ?? editedRoom?.geometry.coordinates[0] ?? null;
 
   return (
-    <>
-      {/* маркер-вершина в режиме правки геометрии */}
-      <style>{`.nv-vertex { background: #f08c00; border: 2px solid #fff; border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.4); }`}</style>
-      <div ref={containerRef} style={{ height: 480, border: "1px solid #dee2e6", borderRadius: 8 }} />
-    </>
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${w} ${h}`}
+      style={{ width: "100%", height: 480, border: "1px solid #dee2e6", borderRadius: 8, background: "#fff", touchAction: "none", userSelect: "none" }}
+      onClick={onBackgroundClick}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      role="img"
+      aria-label="План этажа"
+    >
+      {planUrl && (
+        <image href={planUrl} x={0} y={0} width={w} height={h} preserveAspectRatio="none" />
+      )}
+
+      {showGrid && (
+        <>
+          {/* сетка тонкая + жирная линия каждые 5 клеток, чтобы масштаб читался */}
+          <defs>
+            <pattern id="nv-grid" width={GRID} height={GRID} patternUnits="userSpaceOnUse">
+              <path d={`M ${GRID} 0 L 0 0 0 ${GRID}`} fill="none" stroke="#e7e7e7" strokeWidth="1" />
+            </pattern>
+            <pattern id="nv-grid5" width={GRID * 5} height={GRID * 5} patternUnits="userSpaceOnUse">
+              <rect width={GRID * 5} height={GRID * 5} fill="url(#nv-grid)" />
+              <path d={`M ${GRID * 5} 0 L 0 0 0 ${GRID * 5}`} fill="none" stroke="#c9c9c9" strokeWidth="1.5" />
+            </pattern>
+          </defs>
+          <rect x={0} y={0} width={w} height={h} fill="url(#nv-grid5)" />
+        </>
+      )}
+
+      {rooms.map((r) => {
+        const isEdited = r.id === editRoomId;
+        const ring = isEdited && editedRing ? editedRing : r.geometry.coordinates[0];
+        const pts = ring.map(([x, y]) => `${x},${y}`).join(" ");
+        const highlighted = r.id === highlightRoomId;
+        return (
+          <polygon
+            key={r.id}
+            points={pts}
+            fill={highlighted || isEdited ? "#f08c00" : "#1971c2"}
+            fillOpacity={highlighted ? 0.45 : 0.25}
+            stroke={highlighted || isEdited ? "#f08c00" : "#1971c2"}
+            strokeWidth={2}
+            style={{ cursor: onRoomClick ? "pointer" : "default" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              cbRef.current.onRoomClick?.(r);
+            }}
+            onPointerDown={isEdited ? onRoomBodyDown : undefined}
+          >
+            <title>{`${r.number} ${r.name}`}</title>
+          </polygon>
+        );
+      })}
+
+      {editedRoom && editedRing && (
+        <g>
+          {editedRing.slice(0, -1).map(([x, y], i) => (
+            <rect
+              key={i}
+              x={x - 5} y={y - 5} width={10} height={10}
+              fill="#f08c00" stroke="#fff" strokeWidth={2}
+              style={{ cursor: "move" }}
+              onPointerDown={onVertexDown(i)}
+            />
+          ))}
+        </g>
+      )}
+
+      {draft && draft.length > 0 && (
+        <g>
+          <polygon
+            points={draft.map(([x, y]) => `${x},${y}`).join(" ")}
+            fill="none" stroke="#f08c00" strokeWidth={2}
+          />
+          {draft.map(([x, y], i) => (
+            <rect key={i} x={x - 3} y={y - 3} width={6} height={6} fill="#f08c00" />
+          ))}
+        </g>
+      )}
+    </svg>
   );
 }
