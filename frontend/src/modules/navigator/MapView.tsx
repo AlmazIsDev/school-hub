@@ -122,6 +122,26 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
       type: "Polygon" as const,
       coordinates: [latlngs.map((ll) => [Math.round(ll.lng * 100) / 100, Math.round(ll.lat * 100) / 100])],
     });
+
+    // магнит: к вершинам соседних комнат в радиусе SNAP_PX, иначе к сетке 1px.
+    // Пересечения полигонов не проверяем — снап закрывает стыковку стен,
+    // произвольные наложения остаются на совести рисующего
+    const SNAP_PX = 8;
+    const others: [number, number][] = rooms
+      .filter((r) => r.id !== editRoomId)
+      .flatMap((r) => r.geometry.coordinates[0] as [number, number][]);
+    const snap = (x: number, y: number): [number, number] => {
+      let bx = Math.round(x), by = Math.round(y), best = SNAP_PX;
+      for (const [ox, oy] of others) {
+        const d = Math.hypot(ox - x, oy - y);
+        if (d < best) { best = d; bx = ox; by = oy; }
+      }
+      return [bx, by];
+    };
+    const snapLatLng = (ll: L.LatLng) => {
+      const [x, y] = snap(ll.lng, ll.lat);
+      return L.latLng(y, x);
+    };
     const group = L.layerGroup().addTo(map);
     editLayerRef.current = group;
 
@@ -134,7 +154,9 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
       });
       m.on("drag", (e) => {
         const pts = (lyr.getLatLngs()[0] as L.LatLng[]).slice();
-        pts[i] = (e.target as L.Marker).getLatLng();
+        const snapped = snapLatLng((e.target as L.Marker).getLatLng());
+        pts[i] = snapped;
+        (e.target as L.Marker).setLatLng(snapped); // маркер прилипает к сетке/вершине
         // двигаем первую вершину — тянется замыкающая
         if (i === 0) pts[pts.length - 1] = pts[0];
         lyr.setLatLngs([pts]);
@@ -143,12 +165,17 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
       group.addLayer(m);
     });
 
-    // перетаскивание полигона целиком
+    // перетаскивание полигона целиком: магнит считаем по «якорной» первой вершине,
+    // весь полигон сдвигается на snapped - orig — комната стыкуется углами
     let moving: { start: L.LatLng; orig: L.LatLng[] } | null = null;
     const onMove = (e: L.LeafletMouseEvent) => {
       if (!moving) return;
+      const anchor = moving.orig[0];
+      const target = snapLatLng(L.latLng(
+        anchor.lat + e.latlng.lat - moving.start.lat,
+        anchor.lng + e.latlng.lng - moving.start.lng));
       lyr.setLatLngs([moving.orig.map((ll) =>
-        L.latLng(ll.lat + e.latlng.lat - moving!.start.lat, ll.lng + e.latlng.lng - moving!.start.lng))]);
+        L.latLng(ll.lat + target.lat - anchor.lat, ll.lng + target.lng - anchor.lng))]);
     };
     const onUp = () => {
       if (!moving) return;
