@@ -77,7 +77,7 @@ export default function Layout() {
           />
         )}
       </AppShell.Navbar>
-      <AppShell.Main>
+      <AppShell.Main p="lg" maw={1200}>
         <Outlet />
       </AppShell.Main>
     </AppShell>
