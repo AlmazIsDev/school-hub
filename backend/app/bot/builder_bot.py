@@ -128,7 +128,8 @@ async def _start_run(vk, vk_id: int, peer_id: int, quest: Quest):
     u = await User.find_one(User.vk_id == vk_id)
     if not u:
         return
-    run = await QuestRun(quest_id=str(quest.id), user_id=str(u.id), trace=[]).insert()
+    run = await QuestRun(school_id=quest.school_id, quest_id=str(quest.id),
+                         user_id=str(u.id), trace=[]).insert()
     blocks = _blocks(quest)
     first = quest.structure["blocks"][0]["id"]
     target = _next_block_id(quest, blocks, first, None)

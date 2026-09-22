@@ -8,7 +8,7 @@ from ..core.config import settings
 
 API = "https://api.vk.com/method/"
 V = "5.199"
-RATE = 20  # rps на токен
+RATE = 18  # rps на токен; лимит VK 20/сек, запас на вызовы вне messages.send
 
 
 class VKClient:

@@ -186,7 +186,8 @@ async def handle_message(event: dict, vk):
         return
 
     try:
-        await PollAnswer(poll_id=poll_id, question_idx=idx, value=value).insert()
+        await PollAnswer(school_id=poll.school_id, poll_id=poll_id, question_idx=idx,
+                         value=value).insert()
     except Exception:
         # иначе дедуп-ключ уже съел ответ: откатываем, чтобы юзер мог повторить
         log.exception("не сохранили ответ poll=%s vk=%s", poll_id, vk_id)

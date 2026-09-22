@@ -118,7 +118,8 @@ async def _on_done(payload: dict, event, vk, now: datetime | None = None):
         await _send(vk, peer, ALREADY_DONE)
         return
     try:
-        await DutyCompletion(schedule_id=str(schedule.id), weekday=weekday,
+        await DutyCompletion(school_id=schedule.school_id, schedule_id=str(schedule.id),
+                             weekday=weekday,
                              slot=slot, user_id=str(u.id), date=date).insert()
     except DuplicateKeyError:
         # compound unique index ловит гонку двойного клика

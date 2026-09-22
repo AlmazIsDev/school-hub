@@ -31,7 +31,7 @@ async def handle_idea(event, vk):
     if not u:
         await _send(vk, peer, NOT_BOUND)
         return
-    await PostIdea(author_id=str(u.id), text=text).insert()
+    await PostIdea(school_id=u.school_id, author_id=str(u.id), text=text).insert()
     await _send(vk, peer, IDEA_SENT)
 
     editors = await User.find(
@@ -47,7 +47,7 @@ async def handle_idea(event, vk):
 
 
 async def on_published(payload: dict, vk):
-    """media.published → рассылка анонса всем student с vk_id."""
+    """media.published → рассылка анонса ученикам школы поста."""
     from bson import ObjectId
     from bson.errors import InvalidId
 
@@ -61,6 +61,7 @@ async def on_published(payload: dict, vk):
     if not await _r().set(f"mediapublished:{post.id}", "1", nx=True, ex=604800):
         return
     students = await User.find(
+        User.school_id == post.school_id,
         User.role == "student", User.vk_id != None  # noqa: E711
     ).to_list()
     message = f"Новая публикация: {post.title}\n{post.body[:BODY_PREVIEW]}\n\nПолностью — на сайте."

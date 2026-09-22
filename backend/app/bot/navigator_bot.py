@@ -1,6 +1,7 @@
 import re
 
 from ..core.config import settings
+from ..modules.users.models import User
 from ..modules.navigator.models import Building, Floor, Room
 from .pulse_bot import _send
 
@@ -11,9 +12,15 @@ async def handle_where(event, vk):
     query = event["match"].group(1).strip()
     if not query:
         return
+    u = await User.find_one(User.vk_id == event["vk_user_id"])
+    if not u or not u.school_id:
+        await _send(vk, event["peer_id"],
+                    "Сначала привяжи аккаунт командой «код <6 цифр>» с сайта.")
+        return
     rx = re.compile(re.escape(query), re.IGNORECASE)
     rooms = await Room.find(
-        {"$or": [{"number": rx}, {"name": rx}]}).limit(MAX_MATCHES + 1).to_list()
+        {"school_id": u.school_id,
+         "$or": [{"number": rx}, {"name": rx}]}).limit(MAX_MATCHES + 1).to_list()
     if not rooms:
         await _send(vk, event["peer_id"],
                     f"Кабинет «{query}» не нашла. Проверь номер на сайте.")

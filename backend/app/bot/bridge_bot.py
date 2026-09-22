@@ -100,13 +100,14 @@ async def _guard_ban(user_id: str, vk, peer_id: int) -> bool:
     return True
 
 
-async def _best_helper(topic: str, exclude: str) -> str | None:
+async def _best_helper(topic: str, exclude: str, school_id: str) -> str | None:
     """Кандидат по теме: не сам, не в бане, vk привязан; минимум активных пар.
     ponytail: N+1 по кандидатам (пользователь + баны + пары на каждого) —
     при школьных объёмах (десятки тем/кандидатов) норм; если станет больно,
     агрегировать пары одним запросом и кэшировать баны."""
     best, best_n = None, None
-    for t in await HelperTopic.find(HelperTopic.topic == topic).to_list():
+    for t in await HelperTopic.find(HelperTopic.school_id == school_id,
+                                    HelperTopic.topic == topic).to_list():
         if t.user_id == exclude:
             continue
         u = await users_service.by_id(t.user_id)
@@ -128,8 +129,8 @@ async def _create_pair(topic: str, request: HelpRequest, helper_id: str, vk) -> 
     if await _active_pair(helper_id) or await _active_pair(request.user_id):
         return None
     pair = await TutorPair(
-        request_id=str(request.id), helper_id=helper_id, seeker_id=request.user_id,
-        chat_key=uuid.uuid4().hex,
+        school_id=request.school_id, request_id=str(request.id), helper_id=helper_id,
+        seeker_id=request.user_id, chat_key=uuid.uuid4().hex,
     ).insert()
     request.status = "paired"
     await request.save()
@@ -147,16 +148,17 @@ async def _create_pair(topic: str, request: HelpRequest, helper_id: str, vk) -> 
     return pair
 
 
-async def try_match(topic: str, vk) -> int:
+async def try_match(topic: str, vk, school_id: str | None = None) -> int:
     """Waiting-заявки по теме → пары. Вызывается после «нужна помощь»
     и после регистрации помощника. Возвращает число созданных пар."""
     created = 0
-    for req in await HelpRequest.find(
-            HelpRequest.topic == topic, HelpRequest.status == "waiting"
-    ).sort("+created_at").to_list():
+    flt = {"topic": topic, "status": "waiting"}
+    if school_id:
+        flt["school_id"] = school_id
+    for req in await HelpRequest.find(flt).sort("+created_at").to_list():
         if await _active_ban(req.user_id):
             continue
-        helper_id = await _best_helper(topic, exclude=req.user_id)
+        helper_id = await _best_helper(topic, exclude=req.user_id, school_id=req.school_id)
         if not helper_id:
             continue
         if not await _create_pair(topic, req, helper_id, vk):
@@ -245,9 +247,9 @@ async def _on_confirm(payload: dict, state: dict, event, vk):
     u = await _user_by_vk(vk_id)
     if u and not await HelperTopic.find_one(
             HelperTopic.user_id == str(u.id), HelperTopic.topic == topic):
-        await HelperTopic(user_id=str(u.id), topic=topic).insert()
+        await HelperTopic(school_id=u.school_id, user_id=str(u.id), topic=topic).insert()
     await _send(vk, peer, f"Готово! Ты в списке помощников по теме «{topic}».")
-    n = await try_match(topic, vk)
+    n = await try_match(topic, vk, school_id=u.school_id)
     if n:
         await _send(vk, peer, f"Сразу подобрал ожидающие заявки: создано пар — {n}.")
 
@@ -284,15 +286,18 @@ async def _on_state_text(state: dict, text: str, event, vk):
         u = await _user_by_vk(vk_id)
         if not u:
             return
-        req = await HelpRequest(user_id=str(u.id), topic=text).insert()
-        await try_match(text, vk)
+        req = await HelpRequest(school_id=u.school_id, user_id=str(u.id), topic=text).insert()
+        await try_match(text, vk, school_id=u.school_id)
         fresh = await HelpRequest.get(req.id)
         if fresh.status == "waiting":
             await _send(vk, peer, NOT_FOUND.format(topic=text))
     elif flow == "report":
         await _r().delete(_state_key(vk_id))
-        await Report(reporter_id=state.get("reporter", ""), reported_user_id=state["reported"],
-                     reason=text).insert()
+        u = await _user_by_vk(vk_id)
+        if not u:
+            return
+        await Report(school_id=u.school_id, reporter_id=state.get("reporter", ""),
+                     reported_user_id=state["reported"], reason=text).insert()
         await _send(vk, peer, "Жалоба отправлена модераторам.")
 
 
@@ -307,11 +312,12 @@ async def _forward_if_paired(event, vk):
     pair = await _active_pair(str(u.id))
     if not pair:
         return
-    msg = await PairMessage(pair_id=str(pair.id), sender_id=str(u.id), text=text).insert()
-    hit = await bridge_service.text_hit(text)
+    msg = await PairMessage(school_id=pair.school_id, pair_id=str(pair.id),
+                            sender_id=str(u.id), text=text).insert()
+    hit = await bridge_service.text_hit(text, school_id=u.school_id)
     if hit:
         # авто-репорт: не доставляем, автор — нарушитель
-        await Report(reporter_id="system", reported_user_id=str(u.id),
+        await Report(school_id=u.school_id, reporter_id="system", reported_user_id=str(u.id),
                      message_id=str(msg.id), reason=f"авто: стоп-слово «{hit}»").insert()
         await _send(vk, peer, STOP_HIT)
         return
