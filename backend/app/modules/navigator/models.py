@@ -15,6 +15,7 @@ class GeoPolygon(BaseModel):
 
 
 class Building(Document):
+    school_id: str
     name: str
     address: str
     created_at: datetime = Field(default_factory=_now)
@@ -24,6 +25,7 @@ class Building(Document):
 
 
 class Floor(Document):
+    school_id: str
     building_id: str
     level: int
     plan_id: str | None = None  # появится в T2
@@ -33,6 +35,7 @@ class Floor(Document):
 
 
 class Room(Document):
+    school_id: str
     floor_id: str
     number: str
     name: str

@@ -10,6 +10,7 @@ def _now() -> datetime:
 
 
 class Quest(Document):
+    school_id: str
     teacher_id: str
     class_id: str
     title: str
@@ -22,6 +23,7 @@ class Quest(Document):
 
 
 class QuestRun(Document):
+    school_id: str
     quest_id: str
     user_id: str
     finished: bool = False

@@ -6,6 +6,8 @@ from .auth import decode_token
 
 bearer = HTTPBearer(auto_error=False)
 
+SUPERADMIN = "superadmin"
+
 
 def get_current_user(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> dict:
     if not cred:
@@ -16,14 +18,19 @@ def get_current_user(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> di
         raise HTTPException(401, "Токен невалиден")
     if payload.get("type") != "access":
         raise HTTPException(401, "Нужен access-токен")
-    return {"id": payload["sub"], "role": payload["role"]}
+    return {
+        "id": payload["sub"],
+        "role": payload["role"],
+        # старые токены без school_id — до логина повторно
+        "school_id": payload.get("school_id"),
+    }
 
 
 def require_role(*roles):
+    """Гвард роли; superadmin проходит любую проверку."""
     async def guard(user: dict = Depends(get_current_user)):
-        # ponytail: принимаем и dict из get_current_user, и объект с .role (в тестах)
         role = user["role"] if isinstance(user, dict) else user.role
-        if role not in roles:
+        if role != SUPERADMIN and role not in roles:
             raise HTTPException(403, "Недостаточно прав")
         return user
 

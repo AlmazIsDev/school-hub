@@ -16,6 +16,7 @@ class EmbeddedSlot(BaseModel):
 
 
 class DutyZone(Document):
+    school_id: str
     name: str
     created_at: datetime = Field(default_factory=_now)
 
@@ -24,6 +25,7 @@ class DutyZone(Document):
 
 
 class DutySchedule(Document):
+    school_id: str
     teacher_id: str
     zone_id: str
     week_pattern: list[EmbeddedSlot]
@@ -34,6 +36,7 @@ class DutySchedule(Document):
 
 
 class DutyCompletion(Document):
+    school_id: str
     schedule_id: str
     weekday: int
     slot: int

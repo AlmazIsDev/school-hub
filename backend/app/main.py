@@ -13,7 +13,7 @@ def create_app() -> FastAPI:
         await init_mongo()
         from .core.config import settings
         from .modules.users import service
-        await service.ensure_admin(
+        await service.ensure_superadmin(
             login=settings.admin_login, password=settings.admin_password,
             full_name=settings.admin_name)
         # разовый фиксап: до keep_nulls=False vk_id/class_id писались как null,
@@ -46,6 +46,8 @@ def create_app() -> FastAPI:
 
     from .modules.users.router import router as users_router
     app.include_router(users_router)
+    from .modules.schools.router import router as schools_router
+    app.include_router(schools_router)
     from .modules.admin.router import router as admin_router
     app.include_router(admin_router)
     from .modules.pulse.router import router as pulse_router

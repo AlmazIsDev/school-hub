@@ -11,6 +11,7 @@ class EmbeddedQuestion(BaseModel):
 
 
 class Poll(Document):
+    school_id: str
     teacher_id: str
     class_id: str
     title: str
@@ -28,6 +29,7 @@ class Poll(Document):
 
 
 class PollAnswer(Document):
+    school_id: str
     poll_id: str
     question_idx: int  # индекс в Poll.questions, не ObjectId — вопросы вложены
     value: str  # шкала — "1".."5", свободный — текст

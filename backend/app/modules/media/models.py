@@ -10,6 +10,7 @@ def _now() -> datetime:
 
 
 class Post(Document):
+    school_id: str
     title: str
     body: str
     status: Literal["idea", "in_progress", "review", "published"] = "idea"
@@ -24,6 +25,7 @@ class Post(Document):
 
 
 class PostIdea(Document):
+    school_id: str
     author_id: str
     text: str
     status: Literal["new", "accepted", "rejected"] = "new"

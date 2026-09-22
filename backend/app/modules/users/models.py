@@ -5,7 +5,18 @@ from pydantic import Field
 from pymongo import IndexModel
 
 
+class School(Document):
+    name: str
+    code: str  # короткий код: вводится при логине и виден в профиле
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    class Settings:
+        name = "schools"
+        indexes = [IndexModel([("code", 1)], unique=True)]
+
+
 class SchoolClass(Document):
+    school_id: str
     grade: int
     letter: str
 
@@ -14,6 +25,7 @@ class SchoolClass(Document):
 
 
 class User(Document):
+    school_id: str
     login: str
     password_hash: str
     full_name: str
@@ -30,7 +42,7 @@ class User(Document):
         # второй пользователь с vk_id=None не может создаться
         keep_nulls = False
         indexes = [
-            IndexModel([("login", 1)], unique=True),
+            IndexModel([("school_id", 1), ("login", 1)], unique=True),
             # sparse: у многих vk_id отсутствует, уникальность нужна только для привязанных
             IndexModel([("vk_id", 1)], unique=True, sparse=True),
         ]

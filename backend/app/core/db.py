@@ -40,7 +40,7 @@ async def init_mongo() -> None:
     from ..modules.navigator.models import Building, Floor, Room  # noqa: PLC0415
     from ..modules.builder.models import Quest, QuestRun  # noqa: PLC0415
     from ..modules.media.models import Post, PostIdea  # noqa: PLC0415
-    from ..modules.users.models import SchoolClass, User  # noqa: PLC0415 — циклический импорт на уровне модуля
+    from ..modules.users.models import School, SchoolClass, User  # noqa: PLC0415 — циклический импорт на уровне модуля
 
     client = get_motor_client()
     for attempt in range(1, 31):  # ~2.5 мин максимум
@@ -53,7 +53,8 @@ async def init_mongo() -> None:
             log.warning("mongo недоступна (попытка %d/30): %s", attempt, e)
             await asyncio.sleep(5)
     await init_beanie(client.get_default_database(), document_models=[
-        User, SchoolClass, Poll, PollAnswer,
+        User, SchoolClass, School,
+        Poll, PollAnswer,
         HelperTopic, HelpRequest, TutorPair, PairMessage, Report, Ban, StopWord,
         DutyZone, DutySchedule, DutyCompletion,
         Building, Floor, Room, Quest, QuestRun,

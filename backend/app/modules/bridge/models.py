@@ -10,6 +10,7 @@ def _now() -> datetime:
 
 
 class HelperTopic(Document):
+    school_id: str
     user_id: str
     topic: str
     created_at: datetime = Field(default_factory=_now)
@@ -19,6 +20,7 @@ class HelperTopic(Document):
 
 
 class HelpRequest(Document):
+    school_id: str
     user_id: str
     topic: str
     status: Literal["waiting", "paired", "closed", "expired"] = "waiting"
@@ -29,6 +31,7 @@ class HelpRequest(Document):
 
 
 class TutorPair(Document):
+    school_id: str
     request_id: str | None = None
     helper_id: str
     seeker_id: str
@@ -44,6 +47,7 @@ class TutorPair(Document):
 
 
 class PairMessage(Document):
+    school_id: str
     pair_id: str
     sender_id: str
     text: str
@@ -54,6 +58,7 @@ class PairMessage(Document):
 
 
 class Report(Document):
+    school_id: str
     reporter_id: str
     reported_user_id: str
     message_id: str | None = None
@@ -66,6 +71,7 @@ class Report(Document):
 
 
 class Ban(Document):
+    school_id: str
     user_id: str
     until: datetime | None = None  # None = навсегда
     reason: str
@@ -76,6 +82,7 @@ class Ban(Document):
 
 
 class StopWord(Document):
+    school_id: str
     word: str
     created_at: datetime = Field(default_factory=_now)
 
