@@ -21,6 +21,10 @@ async def by_login(school_id: str, login: str) -> User | None:
     return await User.find_one(Eq(User.school_id, school_id), Eq(User.login, login))
 
 
+async def superadmin_by_login(login: str) -> User | None:
+    return await User.find_one(User.role == "superadmin", Eq(User.login, login))
+
+
 async def ensure_superadmin(*, login: str, password: str, full_name: str) -> None:
     """Платформенный админ из .env. Создаётся один раз, пароль сразу постоянный."""
     if not password:

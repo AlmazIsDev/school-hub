@@ -1,7 +1,8 @@
 from pydantic import BaseModel
 
 class LoginIn(BaseModel):
-    school_code: str
+    # пустой код школы — только для superadmin (платформенный админ без школы)
+    school_code: str = ""
     login: str
     password: str
 

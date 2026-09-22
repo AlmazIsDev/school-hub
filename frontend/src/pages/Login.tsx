@@ -32,10 +32,9 @@ export default function Login() {
         <Stack gap="sm">
           <Title order={1} size="h2">Школьный хаб</Title>
           <TextInput
-            label="Код школы"
+            label="Код школы (пусто — платформенный админ)"
             value={schoolCode}
             onChange={(e) => setSchoolCode(e.currentTarget.value)}
-            required
             autoFocus
           />
           <TextInput

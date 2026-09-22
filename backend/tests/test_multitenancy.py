@@ -64,6 +64,20 @@ async def test_foreign_poll_is_404(client, db):
     assert r.status_code == 404
 
 
+async def test_superadmin_login_without_school_code(client, db):
+    """Платформенный админ входит с пустым кодом школы."""
+    from app.modules.users.models import User
+    from app.core.auth import hash_password
+    await User(login="root", password_hash=hash_password("pw123456"),
+               full_name="Root", role="superadmin").insert()
+    r = await client.post("/api/auth/login",
+                          json={"school_code": "", "login": "root", "password": "pw123456"})
+    assert r.status_code == 200
+    r = await client.post("/api/auth/login",
+                          json={"school_code": "aa", "login": "root", "password": "pw123456"})
+    assert r.status_code == 401  # под кодом школы его нет
+
+
 async def test_login_wrong_school_code_401(client, db):
     from app.modules.users.service import create_user
     _, tmp = await create_user(school_id=await ensure_school_by_code("aa"),

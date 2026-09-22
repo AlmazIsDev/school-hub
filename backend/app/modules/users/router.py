@@ -15,10 +15,12 @@ router = APIRouter(prefix="/api")
 
 @router.post("/auth/login", response_model=schemas.TokensOut)
 async def login(body: schemas.LoginIn):
-    school = await School.find_one(School.code == body.school_code.strip().lower())
-    if not school:
-        raise HTTPException(401, "Неверный код школы, логин или пароль")
-    user_doc = await service.by_login(str(school.id), body.login)
+    if not body.school_code.strip():
+        # без школы входит только платформенный админ
+        user_doc = await service.superadmin_by_login(body.login)
+    else:
+        school = await School.find_one(School.code == body.school_code.strip().lower())
+        user_doc = await service.by_login(str(school.id), body.login) if school else None
     if not user_doc or not verify_password(body.password, user_doc.password_hash):
         raise HTTPException(401, "Неверный код школы, логин или пароль")
     return {**make_tokens(user_doc.id, user_doc.role, user_doc.school_id),
