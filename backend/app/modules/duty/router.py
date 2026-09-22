@@ -20,6 +20,13 @@ def _get(doc_id: str):
         raise HTTPException(404, "Не найдено")
 
 
+def _school(user: dict) -> str:
+    sid = user.get("school_id")
+    if not sid:
+        raise HTTPException(403, "Только для сотрудников школы")
+    return sid
+
+
 def _slot_out(s) -> dict:
     return {"weekday": s.weekday, "slot": s.slot, "user_id": s.user_id}
 
@@ -36,7 +43,7 @@ async def create_zone(body: schemas.ZoneIn, user: dict = Depends(require_role("t
     name = body.name.strip()
     if not name:
         raise HTTPException(422, "Пустое название зоны")
-    zone = DutyZone(name=name)
+    zone = DutyZone(school_id=_school(user), name=name)
     await zone.insert()
     return {"id": str(zone.id), "name": zone.name}
 
@@ -44,13 +51,13 @@ async def create_zone(body: schemas.ZoneIn, user: dict = Depends(require_role("t
 @router.get("/zones")
 async def list_zones(user: dict = Depends(get_current_user)):
     return [{"id": str(z.id), "name": z.name, "created_at": z.created_at}
-            for z in await DutyZone.find_all().to_list()]
+            for z in await DutyZone.find(DutyZone.school_id == _school(user)).to_list()]
 
 
 @router.delete("/zones/{zone_id}")
 async def delete_zone(zone_id: str, user: dict = Depends(require_role("teacher", "admin"))):
     zone = await DutyZone.get(_get(zone_id))
-    if not zone:
+    if not zone or zone.school_id != _school(user):
         raise HTTPException(404, "Зона не найдена")
     if await DutySchedule.find_one(DutySchedule.zone_id == zone_id):
         raise HTTPException(409, "Сначала удали графики")
@@ -60,7 +67,8 @@ async def delete_zone(zone_id: str, user: dict = Depends(require_role("teacher",
 
 @router.post("/schedules")
 async def create_schedule(body: schemas.ScheduleIn, user: dict = Depends(require_role("teacher", "admin"))):
-    if not await DutyZone.get(_get(body.zone_id)):
+    zone = await DutyZone.get(_get(body.zone_id))
+    if not zone or zone.school_id != _school(user):
         raise HTTPException(404, "Зона не найдена")
 
     # валидация учеников: каждый user_id — существующий User с role=student
@@ -69,7 +77,7 @@ async def create_schedule(body: schemas.ScheduleIn, user: dict = Depends(require
         oids = [ObjectId(i) for i in ids]
     except (InvalidId, TypeError):
         raise HTTPException(422, "user_id должен быть ObjectId")
-    found = await User.find({"_id": {"$in": oids}}).to_list()
+    found = await User.find({"_id": {"$in": oids}, "school_id": _school(user)}).to_list()
     by_id = {str(u.id): u for u in found}
     for uid in ids:
         u = by_id.get(uid)
@@ -82,7 +90,7 @@ async def create_schedule(body: schemas.ScheduleIn, user: dict = Depends(require
         raise HTTPException(422, "Дубликат слота в week_pattern")
 
     # изменения графика = delete + create, PUT для schedules сознательно не делаем (YAGNI)
-    schedule = DutySchedule(teacher_id=user["id"], zone_id=body.zone_id,
+    schedule = DutySchedule(school_id=_school(user), teacher_id=user["id"], zone_id=body.zone_id,
                             week_pattern=[EmbeddedSlot(**s.model_dump()) for s in body.week_pattern])
     await schedule.insert()
     return {"id": str(schedule.id), "teacher_id": schedule.teacher_id,
@@ -92,8 +100,10 @@ async def create_schedule(body: schemas.ScheduleIn, user: dict = Depends(require
 
 @router.get("/schedules")
 async def list_schedules(user_id: str | None = None, user: dict = Depends(get_current_user)):
-    query = DutySchedule.find(DutySchedule.week_pattern.user_id == user_id) \
-        if user_id else DutySchedule.find_all()
+    query = DutySchedule.find(DutySchedule.school_id == _school(user))
+    if user_id:
+        query = DutySchedule.find(DutySchedule.school_id == _school(user),
+                                  DutySchedule.week_pattern.user_id == user_id)
     out = []
     for s in await query.to_list():
         slots = [_slot_out(x) for x in s.week_pattern if not user_id or x.user_id == user_id]
@@ -106,7 +116,7 @@ async def list_schedules(user_id: str | None = None, user: dict = Depends(get_cu
 @router.delete("/schedules/{schedule_id}")
 async def delete_schedule(schedule_id: str, user: dict = Depends(get_current_user)):
     schedule = await DutySchedule.get(_get(schedule_id))
-    if not schedule:
+    if not schedule or schedule.school_id != _school(user):
         raise HTTPException(404, "График не найден")
     if user["role"] != "admin" and schedule.teacher_id != user["id"]:
         raise HTTPException(403, "Недостаточно прав")
@@ -118,7 +128,7 @@ async def delete_schedule(schedule_id: str, user: dict = Depends(get_current_use
 @router.post("/completions")
 async def create_completion(body: schemas.CompletionIn, user: dict = Depends(get_current_user)):
     schedule = await DutySchedule.get(_get(body.schedule_id))
-    if not schedule:
+    if not schedule or schedule.school_id != _school(user):
         raise HTTPException(404, "График не найден")
 
     if user["role"] in ("teacher", "admin"):
@@ -140,7 +150,8 @@ async def create_completion(body: schemas.CompletionIn, user: dict = Depends(get
                                      DutyCompletion.user_id == target_id,
                                      DutyCompletion.date == date):
         raise HTTPException(409, "Отметка за эту дату уже есть")
-    completion = DutyCompletion(schedule_id=body.schedule_id, weekday=body.weekday,
+    completion = DutyCompletion(school_id=_school(user), schedule_id=body.schedule_id,
+                                weekday=body.weekday,
                                 slot=body.slot, user_id=target_id, date=date)
     try:
         await completion.insert()
@@ -162,7 +173,7 @@ async def list_completions(user_id: str | None = None,
     if user["role"] not in ("teacher", "admin") and target_id != user["id"]:
         raise HTTPException(403, "Нельзя смотреть чужие отметки")
 
-    query: dict = {"user_id": target_id}
+    query: dict = {"school_id": _school(user), "user_id": target_id}
     if from_ or to:
         query["date"] = {}
         if from_:
@@ -184,7 +195,8 @@ async def duty_stats(user_id: str | None = None, user: dict = Depends(get_curren
 
     today = datetime.now(timezone.utc).date()
     done = missed = 0
-    for s in await DutySchedule.find(DutySchedule.week_pattern.user_id == target_id).to_list():
+    for s in await DutySchedule.find(DutySchedule.school_id == _school(user),
+                                     DutySchedule.week_pattern.user_id == target_id).to_list():
         slots = [x for x in s.week_pattern if x.user_id == target_id]
         completions = await DutyCompletion.find(
             DutyCompletion.schedule_id == str(s.id),

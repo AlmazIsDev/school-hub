@@ -4,20 +4,21 @@ from ..users import service as users_service
 from .models import Ban, StopWord, TutorPair
 
 
-async def text_hit(text: str) -> str | None:
+async def text_hit(text: str, school_id: str | None = None) -> str | None:
     """Первое стоп-слово в тексте или None. Substring по списку из БД — без морфологии.
     ponytail: substring ловит «мат» в «математике» — держи список от коротких корней,
     по словам/морфологии если ложные срабатывания станут реальной проблемой."""
     low = text.lower()
-    for w in await StopWord.find_all().to_list():
+    flt = {"school_id": school_id} if school_id else {}
+    for w in await StopWord.find(flt).to_list():
         if w.word in low:
             return w.word
     return None
 
 
-async def check_text(text: str) -> bool:
+async def check_text(text: str, school_id: str | None = None) -> bool:
     """True = текст чистый."""
-    return await text_hit(text) is None
+    return await text_hit(text, school_id) is None
 
 
 async def active_ban(user_id: str) -> Ban | None:

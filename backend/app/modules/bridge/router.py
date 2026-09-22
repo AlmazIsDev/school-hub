@@ -18,12 +18,19 @@ def _get(doc_id: str):
         raise HTTPException(404, "Не найдено")
 
 
+def _school(user: dict) -> str:
+    sid = user.get("school_id")
+    if not sid:
+        raise HTTPException(403, "Только для сотрудников школы")
+    return sid
+
+
 @router.get("/reports")
 async def list_reports(status: str = "open",
                        user: dict = Depends(require_role("teacher", "admin"))):
     if status not in ("open", "resolved"):
         raise HTTPException(422, "status: open|resolved")
-    rows = await Report.find(Report.status == status).to_list()
+    rows = await Report.find(Report.school_id == _school(user), Report.status == status).to_list()
     out = []
     for r in rows:
         msg = await PairMessage.get(r.message_id) if r.message_id else None
@@ -41,7 +48,7 @@ async def list_reports(status: str = "open",
 async def resolve_report(report_id: str, body: schemas.ResolveIn,
                          user: dict = Depends(require_role("teacher", "admin"))):
     report = await Report.get(_get(report_id))
-    if not report:
+    if not report or report.school_id != _school(user):
         raise HTTPException(404, "Жалоба не найдена")
     if report.status == "resolved":
         raise HTTPException(409, "Жалоба уже разобрана")
@@ -53,8 +60,8 @@ async def resolve_report(report_id: str, body: schemas.ResolveIn,
             until = datetime.now(timezone.utc) + timedelta(days=body.days)
         else:
             until = None
-        await Ban(user_id=report.reported_user_id, until=until,
-                  reason=f"жалоба {report.id}").insert()
+        await Ban(school_id=report.school_id, user_id=report.reported_user_id,
+                  until=until, reason=f"жалоба {report.id}").insert()
     report.status = "resolved"
     await report.save()
     return {"id": str(report.id), "status": report.status}
@@ -62,7 +69,7 @@ async def resolve_report(report_id: str, body: schemas.ResolveIn,
 
 @router.get("/bans")
 async def list_bans(user: dict = Depends(require_role("teacher", "admin"))):
-    rows = await Ban.find_all().to_list()
+    rows = await Ban.find(Ban.school_id == _school(user)).to_list()
     return [{"id": str(b.id), "user_id": b.user_id,
              "full_name": await service.full_name(b.user_id),
              "until": b.until, "reason": b.reason, "created_at": b.created_at}
@@ -72,7 +79,7 @@ async def list_bans(user: dict = Depends(require_role("teacher", "admin"))):
 @router.delete("/bans/{ban_id}")
 async def delete_ban(ban_id: str, user: dict = Depends(require_role("teacher", "admin"))):
     ban = await Ban.get(_get(ban_id))
-    if not ban:
+    if not ban or ban.school_id != _school(user):
         raise HTTPException(404, "Бан не найден")
     await ban.delete()
     return {"ok": True}
@@ -80,7 +87,8 @@ async def delete_ban(ban_id: str, user: dict = Depends(require_role("teacher", "
 
 @router.get("/stop-words")
 async def list_stop_words(user: dict = Depends(require_role("admin"))):
-    return [{"id": str(w.id), "word": w.word} for w in await StopWord.find_all().to_list()]
+    return [{"id": str(w.id), "word": w.word} for w in
+            await StopWord.find(StopWord.school_id == _school(user)).to_list()]
 
 
 @router.post("/stop-words")
@@ -89,9 +97,9 @@ async def add_stop_word(body: schemas.StopWordIn,
     word = body.word.strip().lower()
     if not word:
         raise HTTPException(422, "Пустое слово")
-    if await StopWord.find_one(StopWord.word == word):
+    if await StopWord.find_one(StopWord.school_id == _school(user), StopWord.word == word):
         raise HTTPException(409, "Такое стоп-слово уже есть")
-    w = StopWord(word=word)
+    w = StopWord(school_id=_school(user), word=word)
     await w.insert()
     return {"id": str(w.id), "word": w.word}
 
@@ -99,7 +107,7 @@ async def add_stop_word(body: schemas.StopWordIn,
 @router.delete("/stop-words/{word_id}")
 async def delete_stop_word(word_id: str, user: dict = Depends(require_role("admin"))):
     w = await StopWord.get(_get(word_id))
-    if not w:
+    if not w or w.school_id != _school(user):
         raise HTTPException(404, "Стоп-слово не найдено")
     await w.delete()
     return {"ok": True}
@@ -107,7 +115,7 @@ async def delete_stop_word(word_id: str, user: dict = Depends(require_role("admi
 
 @router.get("/helpers")
 async def helpers_rating(user: dict = Depends(require_role("teacher", "admin"))):
-    topics = await HelperTopic.find_all().to_list()
+    topics = await HelperTopic.find(HelperTopic.school_id == _school(user)).to_list()
     by_user: dict[str, list[str]] = {}
     for t in topics:
         by_user.setdefault(t.user_id, []).append(t.topic)

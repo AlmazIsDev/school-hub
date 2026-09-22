@@ -26,12 +26,19 @@ def poll_out(p: Poll) -> dict:
             "created_at": p.created_at, "closed_at": p.closed_at}
 
 
-async def get_poll(poll_id: str) -> Poll:
+async def get_poll(poll_id: str, user: dict) -> Poll:
     try:
         poll = await Poll.get(ObjectId(poll_id))
     except (InvalidId, TypeError):
         poll = None
-    if not poll:
+    if not poll or poll.school_id != user.get("school_id"):
+        raise HTTPException(404, "Опрос не найден")
+    return poll
+    try:
+        poll = await Poll.get(ObjectId(poll_id))
+    except (InvalidId, TypeError):
+        poll = None
+    if not poll or poll.school_id != school_id:
         raise HTTPException(404, "Опрос не найден")
     return poll
 
@@ -46,10 +53,10 @@ async def create_poll(body: schemas.PollCreateIn, user: dict = Depends(require_r
         school_class = await SchoolClass.get(ObjectId(body.class_id))
     except (InvalidId, TypeError):
         school_class = None
-    if not school_class:
+    if not school_class or school_class.school_id != user.get("school_id"):
         raise HTTPException(404, "Класс не найден")
-    poll = Poll(teacher_id=user["id"], class_id=body.class_id, title=body.title,
-                topic=body.topic,
+    poll = Poll(school_id=user["school_id"], teacher_id=user["id"], class_id=body.class_id,
+                title=body.title, topic=body.topic,
                 questions=[EmbeddedQuestion(text=q.text, type=q.type) for q in body.questions])
     await poll.insert()
     return {"id": str(poll.id)}
@@ -57,7 +64,7 @@ async def create_poll(body: schemas.PollCreateIn, user: dict = Depends(require_r
 
 @router.post("/polls/{poll_id}/publish")
 async def publish_poll(poll_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    poll = await get_poll(poll_id)
+    poll = await get_poll(poll_id, user)
     if not _can_manage(poll, user):
         raise HTTPException(403, "Не ваш опрос")
     if poll.status == "closed":
@@ -72,7 +79,7 @@ async def publish_poll(poll_id: str, user: dict = Depends(require_role("teacher"
 
 @router.post("/polls/{poll_id}/close")
 async def close_poll(poll_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    poll = await get_poll(poll_id)
+    poll = await get_poll(poll_id, user)
     if not _can_manage(poll, user):
         raise HTTPException(403, "Не ваш опрос")
     if poll.status != "active":
@@ -86,7 +93,7 @@ async def close_poll(poll_id: str, user: dict = Depends(require_role("teacher", 
 @router.get("/polls")
 async def list_polls(user: dict = Depends(get_current_user)):
     if user["role"] == "admin":
-        rows = await Poll.find_all().to_list()
+        rows = await Poll.find(Poll.school_id == user["school_id"]).to_list()
     elif user["role"] == "teacher":
         rows = await Poll.find(Poll.teacher_id == user["id"]).to_list()
     else:
@@ -99,7 +106,7 @@ async def list_polls(user: dict = Depends(get_current_user)):
 
 @router.get("/polls/{poll_id}")
 async def get_poll_view(poll_id: str, user: dict = Depends(get_current_user)):
-    poll = await get_poll(poll_id)
+    poll = await get_poll(poll_id, user)
     if user["role"] == "student":
         u = await users_service.by_id(user["id"])
         if poll.status != "active" or not u or poll.class_id != u.class_id:
@@ -111,10 +118,11 @@ async def get_poll_view(poll_id: str, user: dict = Depends(get_current_user)):
 
 @router.get("/polls/{poll_id}/results")
 async def poll_results(poll_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    poll = await get_poll(poll_id)
+    poll = await get_poll(poll_id, user)
     if not _can_manage(poll, user):
         raise HTTPException(403, "Не ваш опрос")
-    answers = await PollAnswer.find(PollAnswer.poll_id == poll_id).to_list()
+    answers = await PollAnswer.find(PollAnswer.poll_id == poll_id,
+                                    PollAnswer.school_id == user["school_id"]).to_list()
 
     # Анонимные ответы — связать их между собой нельзя, поэтому completed/started
     # считаем как число ответов на последний / первый вопрос соответственно
@@ -146,10 +154,11 @@ async def poll_results(poll_id: str, user: dict = Depends(require_role("teacher"
 @router.get("/polls/{poll_id}/results.csv")
 async def poll_results_csv(poll_id: str, user: dict = Depends(require_role("teacher", "admin"))):
     """CSV для Excel: ; и BOM, ответы анонимны — агрегаты по вопросам."""
-    poll = await get_poll(poll_id)
+    poll = await get_poll(poll_id, user)
     if not _can_manage(poll, user):
         raise HTTPException(403, "Не ваш опрос")
-    answers = await PollAnswer.find(PollAnswer.poll_id == poll_id).to_list()
+    answers = await PollAnswer.find(PollAnswer.poll_id == poll_id,
+                                    PollAnswer.school_id == user["school_id"]).to_list()
 
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";", lineterminator="\n")
@@ -179,14 +188,15 @@ async def weak_topics(threshold: float = 3.5, user: dict = Depends(require_role(
         raise HTTPException(422, "threshold должен быть в (0, 5]")
     # Только closed: средняя по активному опросу вводит в заблуждение —
     # ответили ещё не все, да и учитель не «отработал» результат.
-    query = {"status": "closed"}
+    query = {"status": "closed", "school_id": user.get("school_id")}
     if user["role"] != "admin":
         query["teacher_id"] = user["id"]
     polls = await Poll.find(query).to_list()
 
     out = []
     for p in polls:
-        answers = await PollAnswer.find(PollAnswer.poll_id == str(p.id)).to_list()
+        answers = await PollAnswer.find(PollAnswer.poll_id == str(p.id),
+                                        PollAnswer.school_id == user["school_id"]).to_list()
         scale_idx = {i for i, q in enumerate(p.questions) if q.type == "scale1_5"}
         vals = [int(a.value) for a in answers
                 if a.question_idx in scale_idx and a.value.isdigit() and 1 <= int(a.value) <= 5]
@@ -204,7 +214,7 @@ async def weak_topics(threshold: float = 3.5, user: dict = Depends(require_role(
 async def compare_polls(a: str, b: str, user: dict = Depends(require_role("teacher", "admin"))):
     if a == b:
         raise HTTPException(400, "Нужны два разных опроса")
-    poll_a, poll_b = await get_poll(a), await get_poll(b)
+    poll_a, poll_b = await get_poll(a, user), await get_poll(b, user)
     for p in (poll_a, poll_b):
         if user["role"] != "admin" and p.teacher_id != user["id"]:
             raise HTTPException(403, "Не ваш опрос")
@@ -214,7 +224,8 @@ async def compare_polls(a: str, b: str, user: dict = Depends(require_role("teach
         raise HTTPException(400, "Темы опросов не совпадают")
 
     async def scale_avgs(p: Poll) -> list[float | None]:
-        answers = await PollAnswer.find(PollAnswer.poll_id == str(p.id)).to_list()
+        answers = await PollAnswer.find(PollAnswer.poll_id == str(p.id),
+                                        PollAnswer.school_id == user["school_id"]).to_list()
         by_q: dict[int, list[int]] = {}
         for ans in answers:
             if 0 <= ans.question_idx < len(p.questions) and p.questions[ans.question_idx].type == "scale1_5" \

@@ -21,23 +21,33 @@ def _oid(doc_id: str):
         raise HTTPException(404, "Квест не найден")
 
 
-async def _get_quest(quest_id: str) -> Quest:
+async def _get_quest(quest_id: str, user: dict) -> Quest:
     q = await Quest.get(_oid(quest_id))
-    if not q:
+    if not q or q.school_id != user.get("school_id"):
         raise HTTPException(404, "Квест не найден")
     return q
 
 
 def _ensure_can_manage(q: Quest, user: dict) -> None:
+    if q.school_id != user.get("school_id"):
+        raise HTTPException(404, "Квест не найден")
     if user["role"] != "admin" and q.teacher_id != user["id"]:
         raise HTTPException(403, "Не твой квест")
 
 
+def _school(user: dict) -> str:
+    sid = user.get("school_id")
+    if not sid:
+        raise HTTPException(403, "Только для сотрудников школы")
+    return sid
+
+
 @router.post("/quests")
 async def create_quest(body: schemas.QuestIn, user: dict = Depends(require_role("teacher", "admin"))):
-    if not await SchoolClass.get(_oid(body.class_id)):
+    school_class = await SchoolClass.get(_oid(body.class_id))
+    if not school_class or school_class.school_id != user.get("school_id"):
         raise HTTPException(404, "Класс не найден")
-    q = Quest(teacher_id=user["id"], class_id=body.class_id,
+    q = Quest(school_id=user["school_id"], teacher_id=user["id"], class_id=body.class_id,
               title=body.title, structure=body.structure.model_dump(by_alias=True))
     await q.insert()
     return schemas.quest_out(q)
@@ -45,14 +55,16 @@ async def create_quest(body: schemas.QuestIn, user: dict = Depends(require_role(
 
 @router.get("/quests")
 async def list_quests(user: dict = Depends(require_role("teacher", "admin"))):
-    flt = {} if user["role"] == "admin" else {"teacher_id": user["id"]}
+    flt = {"school_id": _school(user)}
+    if user["role"] != "admin":
+        flt["teacher_id"] = user["id"]
     return [schemas.quest_out(q) for q in await Quest.find(flt).to_list()]
 
 
 @router.get("/quests/published")
 async def list_published(user: dict = Depends(get_current_user)):
-    """Список доступных квестов: ученику — его класс, редакции — все published."""
-    flt: dict = {"status": "published"}
+    """Список доступных квестов: ученику — его класс, сотрудники — вся школа."""
+    flt: dict = {"status": "published", "school_id": _school(user)}
     if user["role"] == "student":
         me = await User.get(ObjectId(user["id"]))
         if not me or not me.class_id:
@@ -63,7 +75,7 @@ async def list_published(user: dict = Depends(get_current_user)):
 
 @router.get("/quests/{quest_id}")
 async def get_quest(quest_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    q = await _get_quest(quest_id)
+    q = await _get_quest(quest_id, user)
     _ensure_can_manage(q, user)
     return schemas.quest_out(q)
 
@@ -71,11 +83,12 @@ async def get_quest(quest_id: str, user: dict = Depends(require_role("teacher", 
 @router.put("/quests/{quest_id}")
 async def update_quest(quest_id: str, body: schemas.QuestIn,
                        user: dict = Depends(require_role("teacher", "admin"))):
-    q = await _get_quest(quest_id)
+    q = await _get_quest(quest_id, user)
     _ensure_can_manage(q, user)
     if q.status != "draft":
         raise HTTPException(409, "Редактировать можно только draft")
-    if not await SchoolClass.get(_oid(body.class_id)):
+    school_class = await SchoolClass.get(_oid(body.class_id))
+    if not school_class or school_class.school_id != user.get("school_id"):
         raise HTTPException(404, "Класс не найден")
     q.title = body.title
     q.class_id = body.class_id
@@ -86,7 +99,7 @@ async def update_quest(quest_id: str, body: schemas.QuestIn,
 
 @router.post("/quests/{quest_id}/publish")
 async def publish_quest(quest_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    q = await _get_quest(quest_id)
+    q = await _get_quest(quest_id, user)
     _ensure_can_manage(q, user)
     if q.status != "draft":
         raise HTTPException(409, "Опубликовать можно только draft")
@@ -97,7 +110,7 @@ async def publish_quest(quest_id: str, user: dict = Depends(require_role("teache
 
 @router.post("/quests/{quest_id}/close")
 async def close_quest(quest_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    q = await _get_quest(quest_id)
+    q = await _get_quest(quest_id, user)
     _ensure_can_manage(q, user)
     if q.status != "published":
         raise HTTPException(409, "Закрыть можно только published")
@@ -108,7 +121,7 @@ async def close_quest(quest_id: str, user: dict = Depends(require_role("teacher"
 
 @router.get("/quests/{quest_id}/play")
 async def play_quest(quest_id: str, user: dict = Depends(get_current_user)):
-    q = await _get_quest(quest_id)
+    q = await _get_quest(quest_id, user)
     if q.status != "published":
         raise HTTPException(409, "Квест не опубликован")
     # teacher/admin могут смотреть published чужих квестов — превью без класса
@@ -124,11 +137,12 @@ class PlayAnswerIn(BaseModel):
 
 @router.post("/quests/{quest_id}/play/start")
 async def play_start(quest_id: str, user: dict = Depends(get_current_user)):
-    q = await _get_quest(quest_id)
+    q = await _get_quest(quest_id, user)
     if q.status != "published":
         raise HTTPException(409, "Квест не опубликован")
     await service.check_class_access(q, user)
-    run = await QuestRun(quest_id=quest_id, user_id=user["id"], trace=[]).insert()
+    run = await QuestRun(school_id=q.school_id, quest_id=quest_id,
+                         user_id=user["id"], trace=[]).insert()
     blocks = service.blocks_map(q)
     target = service.resolve_next(blocks, q.structure["blocks"][0]["id"], None)
     return _play_state(q, run, blocks, target)
@@ -137,7 +151,7 @@ async def play_start(quest_id: str, user: dict = Depends(get_current_user)):
 @router.post("/quests/{quest_id}/play/answer")
 async def play_answer(quest_id: str, body: PlayAnswerIn,
                       user: dict = Depends(get_current_user)):
-    q = await _get_quest(quest_id)
+    q = await _get_quest(quest_id, user)
     if q.status != "published":
         raise HTTPException(409, "Квест закрыт.")
     try:
@@ -197,7 +211,7 @@ async def _advance(q: Quest, run: QuestRun, blocks: dict, target: str) -> dict:
 
 @router.get("/quests/{quest_id}/stats")
 async def quest_stats(quest_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    q = await _get_quest(quest_id)
+    q = await _get_quest(quest_id, user)
     _ensure_can_manage(q, user)
     runs = await QuestRun.find(QuestRun.quest_id == quest_id).to_list()
     started = len(runs)

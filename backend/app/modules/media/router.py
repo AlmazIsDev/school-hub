@@ -23,6 +23,13 @@ def _oid(doc_id: str) -> ObjectId:
         raise HTTPException(404, "Не найдено")
 
 
+def _school(user: dict) -> str:
+    sid = user.get("school_id")
+    if not sid:
+        raise HTTPException(403, "Только для сотрудников школы")
+    return sid
+
+
 def _post_out(p: Post) -> dict:
     return {"id": str(p.id), "title": p.title, "body": p.body, "status": p.status,
             "assignee_id": p.assignee_id, "publish_at": p.publish_at,
@@ -36,7 +43,7 @@ def _idea_out(i: PostIdea) -> dict:
 
 @router.post("/posts")
 async def create_post(body: schemas.PostIn, user: dict = Depends(require_role("teacher", "admin"))):
-    post = Post(title=body.title.strip(), body=body.body)
+    post = Post(school_id=_school(user), title=body.title.strip(), body=body.body)
     if not post.title:
         raise HTTPException(422, "Пустой заголовок")
     await post.insert()
@@ -47,8 +54,11 @@ async def create_post(body: schemas.PostIn, user: dict = Depends(require_role("t
 async def list_posts(status: str | None = None, user: dict = Depends(get_current_user)):
     # ученикам доступна только опубликованная лента, редакция — весь канбан
     if user["role"] not in ("teacher", "admin"):
-        return [_post_out(p) for p in await Post.find(Post.status == "published").to_list()]
-    query = Post.find(Post.status == status) if status else Post.find_all()
+        return [_post_out(p) for p in await Post.find(
+            Post.school_id == _school(user), Post.status == "published").to_list()]
+    query = Post.find(Post.school_id == _school(user))
+    if status:
+        query = Post.find(Post.school_id == _school(user), Post.status == status)
     return [_post_out(p) for p in await query.to_list()]
 
 
@@ -56,7 +66,7 @@ async def list_posts(status: str | None = None, user: dict = Depends(get_current
 async def patch_post(post_id: str, body: schemas.PostPatch,
                      user: dict = Depends(require_role("teacher", "admin"))):
     post = await Post.get(_oid(post_id))
-    if not post:
+    if not post or post.school_id != _school(user):
         raise HTTPException(404, "Пост не найден")
 
     if body.status is not None and body.status != post.status:
@@ -86,7 +96,7 @@ async def patch_post(post_id: str, body: schemas.PostPatch,
 
 @router.post("/ideas")
 async def create_idea(body: schemas.IdeaIn, user: dict = Depends(get_current_user)):
-    idea = PostIdea(author_id=user["id"], text=body.text.strip())
+    idea = PostIdea(school_id=_school(user), author_id=user["id"], text=body.text.strip())
     if not idea.text:
         raise HTTPException(422, "Пустая идея")
     await idea.insert()
@@ -96,15 +106,18 @@ async def create_idea(body: schemas.IdeaIn, user: dict = Depends(get_current_use
 @router.get("/ideas")
 async def list_ideas(status: str | None = None,
                      user: dict = Depends(require_role("teacher", "admin"))):
-    query = PostIdea.find(PostIdea.status == status) if status else PostIdea.find_all()
+    query = PostIdea.find(PostIdea.school_id == _school(user))
+    if status:
+        query = PostIdea.find(PostIdea.school_id == _school(user), PostIdea.status == status)
     return [_idea_out(i) for i in await query.to_list()]
 
 
-async def _claim_idea(idea_id: str, new_status: str) -> PostIdea:
+async def _claim_idea(idea_id: str, new_status: str, user: dict) -> PostIdea:
     # атомарно забираем идею: условие status=new в фильтре самого update,
     # параллельный клик получит matched_count=0 и 409 вместо второго поста
     res = await PostIdea.find_one(
-        PostIdea.id == _oid(idea_id), PostIdea.status == "new"
+        PostIdea.id == _oid(idea_id), PostIdea.school_id == _school(user),
+        PostIdea.status == "new"
     ).update({"$set": {"status": new_status}})
     if not res.matched_count:
         raise HTTPException(409, "Идея не найдена или уже обработана")
@@ -113,13 +126,13 @@ async def _claim_idea(idea_id: str, new_status: str) -> PostIdea:
 
 @router.post("/ideas/{idea_id}/accept")
 async def accept_idea(idea_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    idea = await _claim_idea(idea_id, "accepted")
-    post = Post(title=idea.text[:60], body=idea.text)
+    idea = await _claim_idea(idea_id, "accepted", user)
+    post = Post(school_id=idea.school_id, title=idea.text[:60], body=idea.text)
     await post.insert()
     return {"idea": _idea_out(idea), "post": _post_out(post)}
 
 
 @router.post("/ideas/{idea_id}/reject")
 async def reject_idea(idea_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    idea = await _claim_idea(idea_id, "rejected")
+    idea = await _claim_idea(idea_id, "rejected", user)
     return _idea_out(idea)
