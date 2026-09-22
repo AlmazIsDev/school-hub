@@ -1,4 +1,4 @@
-import { AppShell, Burger, Button, Group, NavLink, Title } from "@mantine/core";
+import { AppShell, Burger, Button, Container, Group, NavLink, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth";
@@ -77,8 +77,11 @@ export default function Layout() {
           />
         )}
       </AppShell.Navbar>
-      <AppShell.Main p="lg" maw={1200}>
-        <Outlet />
+      {/* AppShell.Main не трогаем: у него встроенный padding-top под хедер */}
+      <AppShell.Main bg="gray.0">
+        <Container size="lg" px="md" py="lg">
+          <Outlet />
+        </Container>
       </AppShell.Main>
     </AppShell>
   );
