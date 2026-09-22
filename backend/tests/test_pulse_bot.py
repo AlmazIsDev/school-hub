@@ -1,3 +1,5 @@
+from conftest import ensure_school
+from conftest import ensure_school
 import json
 
 import pytest_asyncio
@@ -6,7 +8,7 @@ from beanie import init_beanie
 
 from app.core import redis as core_redis
 from app.bot import pulse_bot
-from app.modules.users.models import SchoolClass, User
+from app.modules.users.models import School, SchoolClass, User
 from app.modules.pulse.models import Poll, PollAnswer
 
 
@@ -46,7 +48,7 @@ class FakeVK:
 async def db():
     client = AsyncMongoMockClient()
     await init_beanie(client.get_database("test"),
-                      document_models=[User, SchoolClass, Poll, PollAnswer])
+                      document_models=[School, User, SchoolClass, Poll, PollAnswer])
     yield
 
 
@@ -64,14 +66,14 @@ async def vk():
 
 
 async def _mk_poll(class_id: str, questions: list[dict], status: str = "active") -> Poll:
-    poll = Poll(teacher_id="t", class_id=class_id, title="Опрос", topic="Тема",
+    poll = Poll(school_id=await ensure_school(), teacher_id="t", class_id=class_id, title="Опрос", topic="Тема",
                 status=status, questions=[{"text": q["text"], "type": q["type"]} for q in questions])
     await poll.insert()
     return poll
 
 
 async def _mk_student(vk_id: int | None = None, class_id: str | None = None) -> User:
-    u = User(login=f"s{vk_id}", password_hash="x", full_name="У",
+    u = User(school_id=await ensure_school(), login=f"s{vk_id}", password_hash="x", full_name="У",
              role="student", class_id=class_id, vk_id=vk_id)
     await u.insert()
     return u
@@ -100,7 +102,7 @@ async def test_published_sends_to_students_with_vk_id(db, fake_redis, vk):
 
 
 async def _insert_class() -> SchoolClass:
-    c = SchoolClass(grade=9, letter="А")
+    c = SchoolClass(school_id=await ensure_school(), grade=9, letter="А")
     await c.insert()
     return c
 

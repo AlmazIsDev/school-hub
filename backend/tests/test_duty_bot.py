@@ -1,3 +1,4 @@
+from conftest import ensure_school
 import json
 from datetime import datetime, timezone
 
@@ -8,7 +9,7 @@ from mongomock_motor import AsyncMongoMockClient
 from app.bot import duty_bot
 from app.core import redis as core_redis
 from app.modules.duty.models import DutyCompletion, DutySchedule, DutyZone, EmbeddedSlot
-from app.modules.users.models import User
+from app.modules.users.models import School, User
 
 # фиксированный «сейчас»: среда (weekday 3) 2026-09-16, 07:35 локального (UTC+3) = 04:35 UTC
 NOW = datetime(2026, 9, 16, 4, 35, tzinfo=timezone.utc)
@@ -47,7 +48,7 @@ class FakeVK:
 async def db():
     client = AsyncMongoMockClient()
     await init_beanie(client.get_database("test"),
-                      document_models=[User, DutyZone, DutySchedule, DutyCompletion])
+                      document_models=[School, User, DutyZone, DutySchedule, DutyCompletion])
     yield
 
 
@@ -65,7 +66,7 @@ async def vk():
 
 
 async def _mk_student(vk_id: int | None = 100) -> User:
-    u = User(login=f"s{vk_id}", password_hash="x", full_name="У",
+    u = User(school_id=await ensure_school(), login=f"s{vk_id}", password_hash="x", full_name="У",
              role="student", vk_id=vk_id)
     await u.insert()
     return u
@@ -73,9 +74,9 @@ async def _mk_student(vk_id: int | None = 100) -> User:
 
 async def _mk_schedule(user_id: str, slots: list[tuple[int, int]],
                        zone: str = "Столовая") -> DutySchedule:
-    z = DutyZone(name=zone)
+    z = DutyZone(school_id=await ensure_school(), name=zone)
     await z.insert()
-    return await DutySchedule(teacher_id="t", zone_id=str(z.id),
+    return await DutySchedule(school_id=await ensure_school(), teacher_id="t", zone_id=str(z.id),
                               week_pattern=[EmbeddedSlot(weekday=w, slot=s, user_id=user_id)
                                             for w, s in slots]).insert()
 
@@ -166,7 +167,7 @@ async def test_tick_outside_window_silent(db, fake_redis, vk):
 
 async def test_tick_skips_other_weekday_and_userless(db, fake_redis, vk):
     u = await _mk_student()
-    no_vk = User(login="s9", password_hash="x", full_name="У", role="student", vk_id=None)
+    no_vk = User(school_id=await ensure_school(), login="s9", password_hash="x", full_name="У", role="student", vk_id=None)
     await no_vk.insert()
     await _mk_schedule(str(u.id), [(4, 1)])      # четверг — не сегодня
     await _mk_schedule(str(no_vk.id), [(3, 1)])  # слот есть, vk не привязан

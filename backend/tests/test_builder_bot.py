@@ -1,3 +1,4 @@
+from conftest import ensure_school
 import json
 from datetime import datetime, timezone
 
@@ -8,7 +9,7 @@ from mongomock_motor import AsyncMongoMockClient
 from app.bot import builder_bot
 from app.core import redis as core_redis
 from app.modules.builder.models import Quest, QuestRun
-from app.modules.users.models import User
+from app.modules.users.models import School, User
 
 NOW = datetime(2026, 9, 16, 10, 0, tzinfo=timezone.utc)
 
@@ -54,7 +55,7 @@ class FakeVK:
 async def db():
     client = AsyncMongoMockClient()
     await init_beanie(client.get_database("test"),
-                      document_models=[User, Quest, QuestRun])
+                      document_models=[School, User, Quest, QuestRun])
     yield
 
 
@@ -72,7 +73,7 @@ async def vk():
 
 
 async def _mk_student(vk_id=100, class_id="c1") -> User:
-    u = User(login=f"s{vk_id}", password_hash="x", full_name="У",
+    u = User(school_id=await ensure_school(), login=f"s{vk_id}", password_hash="x", full_name="У",
              role="student", vk_id=vk_id, class_id=class_id)
     await u.insert()
     return u
@@ -99,7 +100,7 @@ BRANCHY = {"blocks": [
 
 async def _mk_quest(title="Квиз", structure=LINEAR, status="published",
                     class_id="c1") -> Quest:
-    return await Quest(teacher_id="t", class_id=class_id, title=title,
+    return await Quest(school_id=await ensure_school(), teacher_id="t", class_id=class_id, title=title,
                        structure=structure, status=status).insert()
 
 

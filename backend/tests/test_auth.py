@@ -11,7 +11,7 @@ def test_password_roundtrip():
 
 
 def test_tokens():
-    t = make_tokens(user_id=1, role="teacher")
+    t = make_tokens(user_id=1, role="teacher", school_id="s1")
     at = decode_token(t["access"])
     assert at["sub"] == "1" and at["role"] == "teacher" and at["type"] == "access"
     assert decode_token(t["refresh"])["type"] == "refresh"

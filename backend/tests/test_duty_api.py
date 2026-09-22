@@ -1,16 +1,17 @@
+from conftest import ensure_school
 import pytest_asyncio
 from mongomock_motor import AsyncMongoMockClient
 from beanie import init_beanie
 from httpx import ASGITransport, AsyncClient
 
 from app.main import create_app
-from app.modules.users.models import SchoolClass, User
+from app.modules.users.models import School, SchoolClass, User
 from app.modules.pulse.models import Poll, PollAnswer
 from app.modules.bridge.models import (Ban, HelpRequest, HelperTopic, PairMessage,
                                        Report, StopWord, TutorPair)
 from app.modules.duty.models import DutyCompletion, DutySchedule, DutyZone
 
-ALL_MODELS = [User, SchoolClass, Poll, PollAnswer,
+ALL_MODELS = [School, User, SchoolClass, Poll, PollAnswer,
               HelperTopic, HelpRequest, TutorPair, PairMessage, Report, Ban, StopWord,
               DutyZone, DutySchedule, DutyCompletion]
 
@@ -32,8 +33,8 @@ async def client(db):
 async def _mk_user(login: str, role: str) -> str:
     from app.modules.users.service import create_user
     from app.core.auth import make_tokens
-    u, _ = await create_user(login=login, full_name="У", role=role)
-    return make_tokens(u.id, u.role)["access"]
+    u, _ = await create_user(school_id=await ensure_school(), login=login, full_name="У", role=role)
+    return make_tokens(u.id, u.role, u.school_id)["access"]
 
 
 def _h(token: str) -> dict:

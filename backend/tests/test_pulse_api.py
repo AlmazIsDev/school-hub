@@ -1,3 +1,4 @@
+from conftest import ensure_school
 import json
 
 import pytest_asyncio
@@ -7,7 +8,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import create_app
 from app.core import redis as core_redis
-from app.modules.users.models import SchoolClass, User
+from app.modules.users.models import School, SchoolClass, User
 from app.modules.pulse.models import Poll, PollAnswer
 
 
@@ -16,7 +17,7 @@ from app.modules.pulse.models import Poll, PollAnswer
 async def db():
     client = AsyncMongoMockClient()
     await init_beanie(client.get_database("test"),
-                      document_models=[User, SchoolClass, Poll, PollAnswer])
+                      document_models=[School, User, SchoolClass, Poll, PollAnswer])
     yield
 
 
@@ -31,12 +32,12 @@ async def _mk_user(login: str, role: str, class_id: str | None = None) -> str:
     """Создаёт пользователя и возвращает access-токен."""
     from app.modules.users.service import create_user
     from app.core.auth import make_tokens
-    u, _ = await create_user(login=login, full_name="У", role=role, class_id=class_id)
-    return make_tokens(u.id, u.role)["access"]
+    u, _ = await create_user(school_id=await ensure_school(), login=login, full_name="У", role=role, class_id=class_id)
+    return make_tokens(u.id, u.role, u.school_id)["access"]
 
 
 async def _mk_class(grade: int = 9, letter: str = "А") -> str:
-    c = SchoolClass(grade=grade, letter=letter)
+    c = SchoolClass(school_id=await ensure_school(), grade=grade, letter=letter)
     await c.insert()
     return str(c.id)
 
@@ -174,7 +175,8 @@ async def _mk_poll_full(client, h, class_id, topic="Тема", questions=None) -
 
 
 async def _answer(pid: str, qidx: int, value: str):
-    await PollAnswer(poll_id=pid, question_idx=qidx, value=value).insert()
+    await PollAnswer(school_id=await ensure_school(), poll_id=pid, question_idx=qidx,
+                     value=value).insert()
 
 
 async def test_results_scale_counts_and_free_text(client, db):

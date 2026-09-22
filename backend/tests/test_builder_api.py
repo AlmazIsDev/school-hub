@@ -1,3 +1,4 @@
+from conftest import ensure_school
 import pytest
 import pytest_asyncio
 from mongomock_motor import AsyncMongoMockClient
@@ -5,11 +6,11 @@ from beanie import init_beanie
 from httpx import ASGITransport, AsyncClient
 
 from app.main import create_app
-from app.modules.users.models import SchoolClass, User
+from app.modules.users.models import School, SchoolClass, User
 from app.modules.builder.models import Quest, QuestRun
 from app.modules.builder.quest_structure import QuestStructure, validate_structure
 
-ALL_MODELS = [User, SchoolClass, Quest, QuestRun]
+ALL_MODELS = [School, User, SchoolClass, Quest, QuestRun]
 
 
 @pytest_asyncio.fixture
@@ -29,8 +30,8 @@ async def client(db):
 async def _mk_user(login: str, role: str, class_id: str | None = None) -> str:
     from app.modules.users.service import create_user
     from app.core.auth import make_tokens
-    u, _ = await create_user(login=login, full_name="У", role=role, class_id=class_id)
-    return make_tokens(u.id, u.role)["access"]
+    u, _ = await create_user(school_id=await ensure_school(), login=login, full_name="У", role=role, class_id=class_id)
+    return make_tokens(u.id, u.role, u.school_id)["access"]
 
 
 def _h(token: str) -> dict:
@@ -39,9 +40,9 @@ def _h(token: str) -> dict:
 
 @pytest_asyncio.fixture
 async def env(client):
-    cls = SchoolClass(grade=9, letter="А")
+    cls = SchoolClass(school_id=await ensure_school(), grade=9, letter="А")
     await cls.insert()
-    other = SchoolClass(grade=9, letter="Б")
+    other = SchoolClass(school_id=await ensure_school(), grade=9, letter="Б")
     await other.insert()
     return {"class": str(cls.id), "other_class": str(other.id),
             "teacher": await _mk_user("t1", "teacher"),
@@ -250,14 +251,14 @@ async def test_stats_funnel(client, env):
     from app.modules.builder.models import QuestRun
     from datetime import datetime, timezone
     # прогон 1: дошёл до конца (q1, q2, e1)
-    await QuestRun(quest_id=qid, user_id="s1", finished=True, score=10,
+    await QuestRun(school_id=await ensure_school(), quest_id=qid, user_id="s1", finished=True, score=10,
                    trace=[{"block_id": "q1", "value": "а"},
                           {"block_id": "q2", "value": "а"},
                           {"block_id": "e1", "value": None}],
                    started_at=datetime.now(timezone.utc),
                    finished_at=datetime.now(timezone.utc)).insert()
     # прогон 2: бросил после q1
-    await QuestRun(quest_id=qid, user_id="s2", finished=False, score=0,
+    await QuestRun(school_id=await ensure_school(), quest_id=qid, user_id="s2", finished=False, score=0,
                    trace=[{"block_id": "q1", "value": "б"}],
                    started_at=datetime.now(timezone.utc)).insert()
 

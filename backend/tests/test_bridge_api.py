@@ -1,15 +1,16 @@
+from conftest import ensure_school
 import pytest_asyncio
 from mongomock_motor import AsyncMongoMockClient
 from beanie import init_beanie
 from httpx import ASGITransport, AsyncClient
 
 from app.main import create_app
-from app.modules.users.models import SchoolClass, User
+from app.modules.users.models import School, SchoolClass, User
 from app.modules.pulse.models import Poll, PollAnswer
 from app.modules.bridge.models import (Ban, HelpRequest, HelperTopic, PairMessage,
                                        Report, StopWord, TutorPair)
 
-ALL_MODELS = [User, SchoolClass, Poll, PollAnswer,
+ALL_MODELS = [School, User, SchoolClass, Poll, PollAnswer,
               HelperTopic, HelpRequest, TutorPair, PairMessage, Report, Ban, StopWord]
 
 
@@ -30,8 +31,8 @@ async def client(db):
 async def _mk_user(login: str, role: str, full_name: str = "У") -> str:
     from app.modules.users.service import create_user
     from app.core.auth import make_tokens
-    u, _ = await create_user(login=login, full_name=full_name, role=role)
-    return make_tokens(u.id, u.role)["access"]
+    u, _ = await create_user(school_id=await ensure_school(), login=login, full_name=full_name, role=role)
+    return make_tokens(u.id, u.role, u.school_id)["access"]
 
 
 def _h(token: str) -> dict:
@@ -39,7 +40,7 @@ def _h(token: str) -> dict:
 
 
 async def _mk_report(reported_id: str) -> str:
-    r = Report(reporter_id="r" * 24, reported_user_id=reported_id, reason="мат")
+    r = Report(school_id=await ensure_school(), reporter_id="r" * 24, reported_user_id=reported_id, reason="мат")
     await r.insert()
     return str(r.id)
 
@@ -73,7 +74,7 @@ async def test_resolve_dismiss(client, db):
 async def test_resolve_ban_days(client, db):
     th = _h(await _mk_user("t2", "teacher"))
     from app.modules.users.service import create_user
-    u, _ = await create_user(login="bad1", full_name="Вредитель", role="student")
+    u, _ = await create_user(school_id=await ensure_school(), login="bad1", full_name="Вредитель", role="student")
     uid = str(u.id)
     rid = await _mk_report(uid)
     r = await client.post(f"/api/bridge/reports/{rid}/resolve",
@@ -129,7 +130,7 @@ async def test_resolve_unknown_404(client, db):
 
 async def test_bans_list_and_delete(client, db):
     th = _h(await _mk_user("t8", "teacher"))
-    await Ban(user_id="u" * 24, until=None, reason="тест").insert()
+    await Ban(school_id=await ensure_school(), user_id="u" * 24, until=None, reason="тест").insert()
     r = await client.get("/api/bridge/bans", headers=th)
     assert r.status_code == 200 and len(r.json()) == 1
     ban_id = r.json()[0]["id"]
@@ -162,7 +163,7 @@ async def test_stop_words_teacher_403(client, db):
 
 async def test_check_text(client, db):
     from app.modules.bridge.service import check_text
-    await StopWord(word="мат").insert()
+    await StopWord(school_id=await ensure_school(), word="мат").insert()
     assert await check_text("Привет, как дела?") is True
     assert await check_text("Какой-то МАТ тут") is False
 
@@ -170,18 +171,18 @@ async def test_check_text(client, db):
 async def test_helpers_rating(client, db):
     th = _h(await _mk_user("t10", "teacher"))
     from app.modules.users.service import create_user, by_login
-    await create_user(login="s2", full_name="Помощник", role="student")
-    helper_id = str((await by_login("s2")).id)
-    await HelperTopic(user_id=helper_id, topic="алгебра").insert()
-    await HelperTopic(user_id=helper_id, topic="геометрия").insert()
-    await TutorPair(request_id=None, helper_id=helper_id, seeker_id="s" * 24,
+    await create_user(school_id=await ensure_school(), login="s2", full_name="Помощник", role="student")
+    helper_id = str((await by_login((await ensure_school()), "s2")).id)
+    await HelperTopic(school_id=await ensure_school(), user_id=helper_id, topic="алгебра").insert()
+    await HelperTopic(school_id=await ensure_school(), user_id=helper_id, topic="геометрия").insert()
+    await TutorPair(school_id=await ensure_school(), request_id=None, helper_id=helper_id, seeker_id="s" * 24,
                     chat_key="k1", status="closed", helper_score=5).insert()
-    await TutorPair(request_id=None, helper_id=helper_id, seeker_id="s" * 24,
+    await TutorPair(school_id=await ensure_school(), request_id=None, helper_id=helper_id, seeker_id="s" * 24,
                     chat_key="k2", status="closed", helper_score=3).insert()
     # активная пара и пара без оценки не считаются в среднее, но закрытая без оценки — в pairs
-    await TutorPair(request_id=None, helper_id=helper_id, seeker_id="s" * 24,
+    await TutorPair(school_id=await ensure_school(), request_id=None, helper_id=helper_id, seeker_id="s" * 24,
                     chat_key="k3", status="active").insert()
-    await TutorPair(request_id=None, helper_id=helper_id, seeker_id="s" * 24,
+    await TutorPair(school_id=await ensure_school(), request_id=None, helper_id=helper_id, seeker_id="s" * 24,
                     chat_key="k4", status="closed", helper_score=None).insert()
     r = await client.get("/api/bridge/helpers", headers=th)
     assert r.status_code == 200
@@ -209,11 +210,11 @@ async def test_resolve_invalid_action_422(client, db):
 async def test_report_shows_reporter_and_message(client, db):
     from app.modules.bridge.models import PairMessage
     from app.modules.users.service import create_user
-    rep_u, _ = await create_user(login="rep1", full_name="Репортёр", role="student")
+    rep_u, _ = await create_user(school_id=await ensure_school(), login="rep1", full_name="Репортёр", role="student")
     rep = str(rep_u.id)
-    msg = PairMessage(pair_id="p" * 24, sender_id="x" * 24, text="плохой текст")
+    msg = PairMessage(school_id=await ensure_school(), pair_id="p" * 24, sender_id="x" * 24, text="плохой текст")
     await msg.insert()
-    r_doc = Report(reporter_id=rep, reported_user_id="x" * 24,
+    r_doc = Report(school_id=await ensure_school(), reporter_id=rep, reported_user_id="x" * 24,
                    message_id=str(msg.id), reason="жалоба")
     await r_doc.insert()
     th = _h(await _mk_user("t9", "teacher"))

@@ -10,15 +10,24 @@ from beanie import init_beanie
 from httpx import ASGITransport, AsyncClient
 
 from app.main import create_app
-from app.modules.users.models import SchoolClass, User
+from app.modules.users.models import School, SchoolClass, User
 from app.modules.media.models import Post, PostIdea
 
 
 @pytest_asyncio.fixture
 async def db():
     client = AsyncMongoMockClient()
-    await init_beanie(client.get_database("test"), document_models=[User, SchoolClass, Post, PostIdea])
+    await init_beanie(client.get_database("test"),
+                      document_models=[School, User, SchoolClass, Post, PostIdea])
     yield
+
+
+async def ensure_school() -> str:
+    """Школа «s1» для тестов: создаётся лениво, возвращает реальный _id."""
+    s = await School.find_one(School.code == "s1")
+    if not s:
+        s = await School(name="Школа", code="s1").insert()
+    return str(s.id)
 
 
 @pytest_asyncio.fixture

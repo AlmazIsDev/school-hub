@@ -1,11 +1,12 @@
+from conftest import ensure_school
 import fakeredis.aioredis as fr
 import app.core.redis as core_redis
 
 async def test_me_vk_code(client, db, monkeypatch):
     core_redis.get_redis = lambda: fr.FakeRedis()
     from app.modules.users.service import create_user
-    _, tmp = await create_user(login="m1", full_name="У", role="student")
-    tok = (await client.post("/api/auth/login", json={"login": "m1", "password": tmp})).json()
+    _, tmp = await create_user(school_id=await ensure_school(), login="m1", full_name="У", role="student")
+    tok = (await client.post("/api/auth/login", json={"school_code": "s1", "login": "m1", "password": tmp})).json()
     h = {"Authorization": f"Bearer {tok['access']}"}
     r = await client.post("/api/me/vk-code", headers=h)
     assert r.status_code == 200 and len(r.json()["code"]) == 6
@@ -44,10 +45,10 @@ async def test_bind_duplicate_vk_friendly_error(client, db, monkeypatch):
     fakes = fr.FakeRedis()
     core_redis.get_redis = lambda: fakes
     monkeypatch.setattr(codes, "r", fakes)
-    a, _ = await create_user(login="a1", full_name="Аня", role="student")
+    a, _ = await create_user(school_id=await ensure_school(), login="a1", full_name="Аня", role="student")
     a.vk_id = 421454852
     await a.save()
-    b, _ = await create_user(login="b1", full_name="Боря", role="student")
+    b, _ = await create_user(school_id=await ensure_school(), login="b1", full_name="Боря", role="student")
     await fakes.set("vkcode:123456", str(b.id), ex=900)
 
     vk = FakeVK()
@@ -58,7 +59,7 @@ async def test_bind_duplicate_vk_friendly_error(client, db, monkeypatch):
 
 async def test_my_account_command(client, db):
     from app.modules.users.service import create_user
-    u, _ = await create_user(login="vika", full_name="Вика", role="student")
+    u, _ = await create_user(school_id=await ensure_school(), login="vika", full_name="Вика", role="student")
     u.vk_id = 555
     await u.save()
     vk = FakeVK()

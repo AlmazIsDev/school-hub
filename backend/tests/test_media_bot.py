@@ -1,3 +1,4 @@
+from conftest import ensure_school
 import re
 
 import pytest_asyncio
@@ -7,7 +8,7 @@ from mongomock_motor import AsyncMongoMockClient
 from app.bot import media_bot
 from app.core import redis as core_redis
 from app.modules.media.models import Post, PostIdea
-from app.modules.users.models import User
+from app.modules.users.models import School, User
 
 
 class FakeRedis:
@@ -44,7 +45,7 @@ class FakeVK:
 async def db():
     client = AsyncMongoMockClient()
     await init_beanie(client.get_database("test"),
-                      document_models=[User, Post, PostIdea])
+                      document_models=[School, User, Post, PostIdea])
     yield
 
 
@@ -62,7 +63,7 @@ async def vk():
 
 
 async def _mk_user(role="student", vk_id=100, full_name="У") -> User:
-    u = User(login=f"l{vk_id}{role}", password_hash="x", full_name=full_name,
+    u = User(school_id=await ensure_school(), login=f"l{vk_id}{role}", password_hash="x", full_name=full_name,
              role=role, vk_id=vk_id)
     await u.insert()
     return u
@@ -116,7 +117,7 @@ async def test_published_broadcast(db, fake_redis, vk):
     await _mk_user(role="student", vk_id=200)
     await _mk_user(role="student", vk_id=None)  # без vk — мимо
     await _mk_user(role="teacher", vk_id=300)  # учитель — мимо
-    post = await Post(title="Т", body="Б" * 500, status="published").insert()
+    post = await Post(school_id=await ensure_school(), title="Т", body="Б" * 500, status="published").insert()
     await media_bot.on_published({"post_id": str(post.id)}, vk)
     peers = [c["peer_id"] for c in vk.calls]
     assert sorted(peers) == [100, 200]
@@ -135,7 +136,7 @@ async def test_published_broken_event_silent(db, fake_redis, vk):
 async def test_no_reduplicate_mailing_on_event_repeat(db, fake_redis, vk):
     """Повторное media.published на тот же post_id не рассылает анонс второй раз."""
     await _mk_user(role="student", vk_id=100)
-    post = Post(title="Пост", body="Текст", status="published")
+    post = Post(school_id=await ensure_school(), title="Пост", body="Текст", status="published")
     await post.insert()
     import json as _json
     await media_bot.on_published({"post_id": str(post.id)}, vk)

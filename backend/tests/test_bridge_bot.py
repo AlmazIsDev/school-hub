@@ -1,3 +1,4 @@
+from conftest import ensure_school
 import json
 from datetime import datetime, timezone
 
@@ -9,7 +10,7 @@ from app.core import redis as core_redis
 from app.bot import bridge_bot
 from app.bot.dispatcher import Dispatcher
 from app.bot.handlers import register
-from app.modules.users.models import SchoolClass, User
+from app.modules.users.models import School, SchoolClass, User
 from app.modules.bridge.models import (
     Ban, HelpRequest, HelperTopic, PairMessage, Report, StopWord, TutorPair,
 )
@@ -57,7 +58,7 @@ async def db():
     client = AsyncMongoMockClient()
     await init_beanie(
         client.get_database("test"),
-        document_models=[SchoolClass, User, Poll, PollAnswer, HelperTopic,
+        document_models=[School, SchoolClass, User, Poll, PollAnswer, HelperTopic,
                          HelpRequest, TutorPair, PairMessage, Report, Ban, StopWord],
     )
     yield
@@ -77,7 +78,7 @@ async def vk():
 
 
 async def _mk_user(vk_id: int, name: str = "У") -> User:
-    u = User(login=f"u{vk_id}", password_hash="x", full_name=name,
+    u = User(school_id=await ensure_school(), login=f"u{vk_id}", password_hash="x", full_name=name,
              role="student", vk_id=vk_id)
     await u.insert()
     return u
@@ -132,7 +133,7 @@ async def test_become_helper_confirm_no(db, fake_redis, vk):
 async def test_need_help_matched(db, fake_redis, vk):
     helper = await _mk_user(100, "Помощник")
     seeker = await _mk_user(200, "Заявитель")
-    await HelperTopic(user_id=str(helper.id), topic="алгебра").insert()
+    await HelperTopic(school_id=await ensure_school(), user_id=str(helper.id), topic="алгебра").insert()
 
     await bridge_bot.start_need_help({"vk_user_id": 200, "peer_id": 200}, vk)
     await bridge_bot.handle_message({"vk_user_id": 200, "peer_id": 200, "text": "алгебра"}, vk)
@@ -181,16 +182,16 @@ async def test_need_help_no_helper_waiting_then_try_match(db, fake_redis, vk):
 async def test_match_excludes_self_banned_and_loads(db, fake_redis, vk):
     await _mk_user(100, "Сам")        # сам заявитель — исключён, хоть и помощник
     banned = await _mk_user(300, "Бан")
-    await HelperTopic(user_id=str((await User.find_one(User.vk_id == 100)).id), topic="физика").insert()
-    await HelperTopic(user_id=str(banned.id), topic="физика").insert()
-    await Ban(user_id=str(banned.id), reason="тест").insert()  # until=None — навсегда
+    await HelperTopic(school_id=await ensure_school(), user_id=str((await User.find_one(User.vk_id == 100)).id), topic="физика").insert()
+    await HelperTopic(school_id=await ensure_school(), user_id=str(banned.id), topic="физика").insert()
+    await Ban(school_id=await ensure_school(), user_id=str(banned.id), reason="тест").insert()  # until=None — навсегда
     free = await _mk_user(400, "Свободный")
     loaded = await _mk_user(500, "Загруженный")
-    await HelperTopic(user_id=str(free.id), topic="физика").insert()
-    await HelperTopic(user_id=str(loaded.id), topic="физика").insert()
+    await HelperTopic(school_id=await ensure_school(), user_id=str(free.id), topic="физика").insert()
+    await HelperTopic(school_id=await ensure_school(), user_id=str(loaded.id), topic="физика").insert()
     other = await _mk_user(600, "Другой")
     # у «Загруженного» уже есть активная пара
-    await TutorPair(helper_id=str(loaded.id), seeker_id=str(other.id),
+    await TutorPair(school_id=await ensure_school(), helper_id=str(loaded.id), seeker_id=str(other.id),
                     chat_key="x").insert()
 
     await bridge_bot.start_need_help({"vk_user_id": 100, "peer_id": 100}, vk)
@@ -204,7 +205,7 @@ async def test_match_excludes_self_banned_and_loads(db, fake_redis, vk):
 async def test_banned_cannot_start_flows(db, fake_redis, vk):
     u = await _mk_user(100)
     until_ban = datetime(2999, 1, 1, tzinfo=timezone.utc)
-    await Ban(user_id=str(u.id), until=until_ban, reason="тест").insert()
+    await Ban(school_id=await ensure_school(), user_id=str(u.id), until=until_ban, reason="тест").insert()
     await bridge_bot.start_become_helper({"vk_user_id": 100, "peer_id": 100}, vk)
     await bridge_bot.start_need_help({"vk_user_id": 100, "peer_id": 100}, vk)
     assert len(await HelperTopic.find_all().to_list()) == 0
@@ -216,9 +217,9 @@ async def test_banned_cannot_start_flows(db, fake_redis, vk):
 async def test_forward_clean_and_stopword(db, fake_redis, vk):
     helper = await _mk_user(100, "Помощник")
     seeker = await _mk_user(200, "Заявитель")
-    pair = await TutorPair(helper_id=str(helper.id), seeker_id=str(seeker.id),
+    pair = await TutorPair(school_id=await ensure_school(), helper_id=str(helper.id), seeker_id=str(seeker.id),
                            chat_key="ck").insert()
-    await StopWord(word="дурак").insert()
+    await StopWord(school_id=await ensure_school(), word="дурак").insert()
 
     # чистое сообщение доставлено и сохранено
     await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "привет"}, vk)
@@ -241,8 +242,8 @@ async def test_forward_clean_and_stopword(db, fake_redis, vk):
 async def test_finish_pair_and_rates(db, fake_redis, vk):
     helper = await _mk_user(100, "Помощник")
     seeker = await _mk_user(200, "Заявитель")
-    req = await HelpRequest(user_id=str(seeker.id), topic="алгебра", status="paired").insert()
-    pair = await TutorPair(request_id=str(req.id), helper_id=str(helper.id),
+    req = await HelpRequest(school_id=await ensure_school(), user_id=str(seeker.id), topic="алгебра", status="paired").insert()
+    pair = await TutorPair(school_id=await ensure_school(), request_id=str(req.id), helper_id=str(helper.id),
                            seeker_id=str(seeker.id), chat_key="ck").insert()
 
     await bridge_bot.finish_pair({"vk_user_id": 100, "peer_id": 100}, vk)
@@ -281,7 +282,7 @@ async def test_finish_without_pair(db, fake_redis, vk):
 async def test_report_flow(db, fake_redis, vk):
     helper = await _mk_user(100, "Помощник")
     seeker = await _mk_user(200, "Заявитель")
-    await TutorPair(helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
+    await TutorPair(school_id=await ensure_school(), helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
 
     await bridge_bot.start_report({"vk_user_id": 200, "peer_id": 200}, vk)
     await bridge_bot.handle_message({"vk_user_id": 200, "peer_id": 200,
@@ -316,8 +317,8 @@ async def test_text_without_pair_or_state_ignored(db, fake_redis, vk):
 async def test_banned_in_pair_no_forward(db, fake_redis, vk):
     helper = await _mk_user(100, "Помощник")
     seeker = await _mk_user(200, "Заявитель")
-    await TutorPair(helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
-    await Ban(user_id=str(helper.id), reason="тест").insert()  # until=None — навсегда
+    await TutorPair(school_id=await ensure_school(), helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
+    await Ban(school_id=await ensure_school(), user_id=str(helper.id), reason="тест").insert()  # until=None — навсегда
 
     await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "привет"}, vk)
     assert len(await PairMessage.find_all().to_list()) == 0
@@ -328,7 +329,7 @@ async def test_banned_in_pair_no_forward(db, fake_redis, vk):
 async def test_need_help_while_in_pair_rejected(db, fake_redis, vk):
     helper = await _mk_user(100, "П")
     seeker = await _mk_user(200, "З")
-    await TutorPair(helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
+    await TutorPair(school_id=await ensure_school(), helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
 
     await bridge_bot.start_need_help({"vk_user_id": 200, "peer_id": 200}, vk)
     assert len(await HelpRequest.find_all().to_list()) == 0
@@ -361,11 +362,11 @@ async def test_payload_without_state_expired(db, fake_redis, vk):
 async def test_helper_at_pair_cap_skipped(db, fake_redis, vk):
     capped = await _mk_user(500, "Загруженный")
     free = await _mk_user(400, "Свободный")
-    await HelperTopic(user_id=str(capped.id), topic="физика").insert()
-    await HelperTopic(user_id=str(free.id), topic="физика").insert()
+    await HelperTopic(school_id=await ensure_school(), user_id=str(capped.id), topic="физика").insert()
+    await HelperTopic(school_id=await ensure_school(), user_id=str(free.id), topic="физика").insert()
     other = await _mk_user(600, "Другой")
     for _ in range(bridge_bot.MAX_ACTIVE_PAIRS):
-        await TutorPair(helper_id=str(capped.id), seeker_id=str(other.id), chat_key="x").insert()
+        await TutorPair(school_id=await ensure_school(), helper_id=str(capped.id), seeker_id=str(other.id), chat_key="x").insert()
     seeker = await _mk_user(700, "Заявитель")  # не участник существующих пар
 
     await bridge_bot.start_need_help({"vk_user_id": 700, "peer_id": 700}, vk)
@@ -379,7 +380,7 @@ async def test_helper_at_pair_cap_skipped(db, fake_redis, vk):
 async def test_poll_state_takes_priority(db, fake_redis, vk):
     helper = await _mk_user(100, "П")
     seeker = await _mk_user(200, "З")
-    await TutorPair(helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
+    await TutorPair(school_id=await ensure_school(), helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
     # юзер посреди опроса — bridge его текст не трогает
     fake_redis.data["pollstate:100"] = json.dumps({"poll_id": "x", "idx": 0})
     await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "привет"}, vk)

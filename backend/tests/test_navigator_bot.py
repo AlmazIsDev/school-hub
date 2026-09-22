@@ -1,3 +1,4 @@
+from conftest import ensure_school
 import re
 
 import pytest_asyncio
@@ -6,6 +7,7 @@ from mongomock_motor import AsyncMongoMockClient
 
 from app.bot import navigator_bot
 from app.modules.navigator.models import Building, Floor, Room
+from app.modules.users.models import School, User
 
 
 class FakeVK:
@@ -21,17 +23,19 @@ class FakeVK:
 async def db():
     client = AsyncMongoMockClient()
     await init_beanie(client.get_database("test"),
-                      document_models=[Building, Floor, Room])
+                      document_models=[School, User, Building, Floor, Room])
     yield
 
 
 @pytest_asyncio.fixture
 async def school(db):
-    b = Building(name="Основное", address="ул. Школьная 1")
+    await User(school_id=await ensure_school(), login="s100", password_hash="x",
+               full_name="Ученик", role="student", vk_id=100).insert()
+    b = Building(school_id=await ensure_school(), name="Основное", address="ул. Школьная 1")
     await b.insert()
-    f = Floor(building_id=str(b.id), level=2)
+    f = Floor(school_id=await ensure_school(), building_id=str(b.id), level=2)
     await f.insert()
-    room = Room(floor_id=str(f.id), number="205", name="Информатика",
+    room = Room(school_id=await ensure_school(), floor_id=str(f.id), number="205", name="Информатика",
                 geometry={"type": "Polygon",
                           "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]})
     await room.insert()

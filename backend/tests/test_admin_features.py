@@ -1,3 +1,4 @@
+from conftest import ensure_school
 """Расширенная админка: CRUD юзеров/классов и прямое управление БД."""
 import pytest
 import pytest_asyncio
@@ -7,14 +8,14 @@ from httpx import ASGITransport, AsyncClient
 import app.core.db as core_db
 import app.modules.admin.router as admin_router
 from app.main import create_app
-from app.modules.users.models import SchoolClass, User
+from app.modules.users.models import School, SchoolClass, User
 
 
 @pytest_asyncio.fixture
 async def db():
     client = AsyncMongoMockClient()
     from beanie import init_beanie
-    await init_beanie(client.get_database("test"), document_models=[User, SchoolClass])
+    await init_beanie(client.get_database("test"), document_models=[School, User, SchoolClass])
     yield client
 
 
@@ -36,14 +37,14 @@ async def client(db, monkeypatch):
 
 async def _admin(client) -> dict:
     from app.modules.users.service import create_user
-    _, tmp = await create_user(login="adm", full_name="Админ", role="admin")
-    r = await client.post("/api/auth/login", json={"login": "adm", "password": tmp})
+    _, tmp = await create_user(school_id=await ensure_school(), login="adm", full_name="Админ", role="admin")
+    r = await client.post("/api/auth/login", json={"school_code": "s1", "login": "adm", "password": tmp})
     return {"Authorization": f"Bearer {r.json()['access']}"}
 
 
 async def _student(client, login="s1", class_id=None) -> str:
     from app.modules.users.service import create_user
-    u, _ = await create_user(login=login, full_name="Ученик", role="student", class_id=class_id)
+    u, _ = await create_user(school_id=await ensure_school(), login=login, full_name="Ученик", role="student", class_id=class_id)
     return str(u.id)
 
 
@@ -70,14 +71,14 @@ async def test_reset_password_makes_temp(client, db):
     assert r.status_code == 200 and "temp_password" in r.json()
     # временный пароль работает
     r = await client.post("/api/auth/login",
-                          json={"login": "s1", "password": r.json()["temp_password"]})
+                          json={"school_code": "s1", "login": "s1", "password": r.json()["temp_password"]})
     assert r.status_code == 200 and r.json()["must_change_password"] is True
 
 
 async def test_delete_user_and_self_guard(client, db):
     from app.modules.users.service import create_user
-    _, tmp = await create_user(login="adm", full_name="Админ", role="admin")
-    tok = (await client.post("/api/auth/login", json={"login": "adm", "password": tmp})).json()
+    _, tmp = await create_user(school_id=await ensure_school(), login="adm", full_name="Админ", role="admin")
+    tok = (await client.post("/api/auth/login", json={"school_code": "s1", "login": "adm", "password": tmp})).json()
     h = {"Authorization": f"Bearer {tok['access']}"}
     me = await User.find_one(User.login == "adm")
     r = await client.delete(f"/api/users/{me.id}", headers=h)
@@ -101,7 +102,7 @@ async def test_admin_unlink_vk(client, db):
 
 async def test_delete_class_guard(client, db):
     h = await _h(client)
-    cls = SchoolClass(grade=5, letter="А")
+    cls = SchoolClass(school_id=await ensure_school(), grade=5, letter="А")
     await cls.insert()
     uid = await _student(client, class_id=str(cls.id))
     r = await client.delete(f"/api/classes/{cls.id}", headers=h)
@@ -113,8 +114,8 @@ async def test_delete_class_guard(client, db):
 
 async def test_admin_only(client, db):
     from app.modules.users.service import create_user
-    _, tmp = await create_user(login="t1", full_name="Учитель", role="teacher")
-    h = {"Authorization": f"Bearer {(await client.post('/api/auth/login', json={'login': 't1', 'password': tmp})).json()['access']}"}
+    _, tmp = await create_user(school_id=await ensure_school(), login="t1", full_name="Учитель", role="teacher")
+    h = {"Authorization": f"Bearer {(await client.post('/api/auth/login', json={'school_code': 's1', 'login': 't1', 'password': tmp})).json()['access']}"}
     r = await client.get("/api/admin/db/collections", headers=h)
     assert r.status_code == 403
 
