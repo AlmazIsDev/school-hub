@@ -9,6 +9,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const canModerate = user?.role === "teacher" || user?.role === "admin";
   const isAdmin = user?.role === "admin";
+  const isSuperadmin = user?.role === "superadmin";
 
   return (
     <AppShell header={{ height: 56 }} navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !opened } }}>
@@ -74,6 +75,13 @@ export default function Layout() {
             label="Администрирование"
             active={location.pathname === "/admin"}
             onClick={() => { navigate("/admin"); toggle(); }}
+          />
+        )}
+        {isSuperadmin && (
+          <NavLink
+            label="Школы"
+            active={location.pathname === "/schools"}
+            onClick={() => { navigate("/schools"); toggle(); }}
           />
         )}
       </AppShell.Navbar>

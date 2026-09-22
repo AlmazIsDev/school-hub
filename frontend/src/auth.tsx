@@ -5,7 +5,7 @@ type AuthState = {
   /** id и роль из access-токена; null если не залогинен */
   user: { id: string; role: string } | null;
   mustChangePassword: boolean;
-  login: (login: string, password: string) => Promise<void>;
+  login: (schoolCode: string, loginName: string, password: string) => Promise<void>;
   logout: () => void;
   passwordChanged: () => void;
 };
@@ -37,10 +37,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState(readUser);
   const [mustChangePassword, setMustChange] = useState(readMustChange);
 
-  const login = useCallback(async (loginName: string, password: string) => {
+  const login = useCallback(async (schoolCode: string, loginName: string, password: string) => {
     const res = await apiFetch<Tokens & { must_change_password: boolean }>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ login: loginName, password }),
+      body: JSON.stringify({ school_code: schoolCode, login: loginName, password }),
     });
     setTokens({ access: res.access, refresh: res.refresh });
     setMustChangeStored(res.must_change_password);
