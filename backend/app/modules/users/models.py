@@ -25,7 +25,8 @@ class SchoolClass(Document):
 
 
 class User(Document):
-    school_id: str
+    # None только у superadmin (платформенный, без школы)
+    school_id: str | None = None
     login: str
     password_hash: str
     full_name: str
