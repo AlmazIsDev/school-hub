@@ -3,7 +3,7 @@ import logging
 import random
 from datetime import datetime, timezone
 
-from ..core import redis as core_redis
+from ..core import events, redis as core_redis
 from ..modules.builder import service
 from ..modules.builder.models import Quest, QuestRun
 from ..modules.users.models import User
@@ -120,12 +120,8 @@ async def send_block(vk, peer_id: int, quest: Quest, run: QuestRun,
         await run.save()
         await _r().delete(_state_key(peer_id))
         await _send(vk, peer_id, FINISHED.format(score=run.score))
-        try:
-            await _r().publish("events", json.dumps(
-                {"type": "quest.finished", "quest_id": str(quest.id),
-                 "run_id": str(run.id), "score": run.score}))
-        except Exception:
-            log.exception("не опубликовали quest.finished run=%s", run.id)
+        await events.publish("quest.finished", quest_id=str(quest.id),
+                             run_id=str(run.id), score=run.score)
 
 
 async def _start_run(vk, vk_id: int, peer_id: int, quest: Quest):

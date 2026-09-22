@@ -1,6 +1,5 @@
 import csv
 import io
-import json
 import logging
 from collections import Counter
 from datetime import datetime, timezone
@@ -10,7 +9,7 @@ from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from ...core import redis as core_redis
+from ...core import events
 from ...core.security import get_current_user, require_role
 from ..users import service as users_service
 from ...modules.users.models import SchoolClass
@@ -67,12 +66,7 @@ async def publish_poll(poll_id: str, user: dict = Depends(require_role("teacher"
         raise HTTPException(409, "Опрос уже опубликован")
     poll.status = "active"
     await poll.save()
-    try:
-        await core_redis.get_redis().publish(
-            "events", json.dumps({"type": "poll.published", "poll_id": str(poll.id)}))
-    except Exception as e:
-        # как и с close: рассылка не должна ломать публикацию, бот потеряет событие
-        log.warning("poll.published не опубликован: %s", e)
+    await events.publish("poll.published", poll_id=str(poll.id))
     return poll_out(poll)
 
 
@@ -85,12 +79,7 @@ async def close_poll(poll_id: str, user: dict = Depends(require_role("teacher", 
         raise HTTPException(409, "Опрос не активен")
     poll.status, poll.closed_at = "closed", datetime.now(timezone.utc)
     await poll.save()
-    try:
-        await core_redis.get_redis().publish(
-            "events", json.dumps({"type": "poll.closed", "poll_id": str(poll.id)}))
-    except Exception as e:
-        # close не должен падать из-за недоступного redis — подписчик потеряет событие, но статус уже сохранён
-        log.warning("poll.closed не опубликован: %s", e)
+    await events.publish("poll.closed", poll_id=str(poll.id))
     return poll_out(poll)
 
 

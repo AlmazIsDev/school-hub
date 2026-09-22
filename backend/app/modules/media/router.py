@@ -1,11 +1,11 @@
-import json
 import logging
+from datetime import datetime, timezone
 
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException
 
-from ...core import redis as core_redis
+from ...core import events
 from ...core.security import get_current_user, require_role
 from . import schemas
 from .models import Post, PostIdea
@@ -76,14 +76,11 @@ async def patch_post(post_id: str, body: schemas.PostPatch,
     if body.status is not None:
         published_now = body.status == "published" and post.status != "published"
         post.status = body.status
+        if published_now:
+            post.published_at = datetime.now(timezone.utc)
     await post.save()
     if published_now:
-        try:
-            await core_redis.get_redis().publish(
-                "events", json.dumps({"type": "media.published", "post_id": str(post.id)}))
-        except Exception:
-            # падение pub/sub не должно отменять саму публикацию
-            log.exception("не опубликовали media.published post=%s", post.id)
+        await events.publish("media.published", post_id=str(post.id))
     return _post_out(post)
 
 

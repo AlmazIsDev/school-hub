@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import random
@@ -126,30 +125,6 @@ async def catch_up_unnotified(vk):
     polls = await Poll.find(Poll.status == "active", Poll.notified == False).to_list()  # noqa: E712
     for poll in polls:
         await on_published({"poll_id": str(poll.id)}, vk)
-
-
-async def listen_events(vk):
-    """Подписка на pub/sub канал events, переживает недоступный redis."""
-    while True:
-        try:
-            pubsub = _r().pubsub()
-            await pubsub.subscribe("events")
-            async for msg in pubsub.listen():
-                if msg.get("type") != "message":
-                    continue
-                try:
-                    data = json.loads(msg["data"])
-                except (ValueError, TypeError):
-                    continue
-                if data.get("type") == "poll.published":
-                    await on_published(data, vk)
-                elif data.get("type") == "media.published":
-                    # локальный импорт: media_bot использует _send отсюда
-                    from . import media_bot
-                    await media_bot.on_published(data, vk)
-        except Exception:
-            log.exception("events listener crashed, reconnect in 5s")
-            await asyncio.sleep(5)
 
 
 async def handle_message(event: dict, vk):

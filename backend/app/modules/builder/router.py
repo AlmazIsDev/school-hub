@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timezone
 
 from bson import ObjectId
@@ -6,7 +5,7 @@ from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ...core import redis as core_redis
+from ...core import events
 from ...core.security import get_current_user, require_role
 from ...modules.users.models import SchoolClass, User
 from . import schemas, service
@@ -186,12 +185,8 @@ async def _advance(q: Quest, run: QuestRun, blocks: dict, target: str) -> dict:
         run.score = blocks[target]["score"]
         run.finished_at = datetime.now(timezone.utc)
         await run.save()
-        try:
-            await core_redis.get_redis().publish("events", json.dumps(
-                {"type": "quest.finished", "quest_id": str(q.id),
-                 "run_id": str(run.id), "score": run.score}))
-        except Exception:
-            pass
+        await events.publish("quest.finished", quest_id=str(q.id),
+                             run_id=str(run.id), score=run.score)
         return {"run_id": str(run.id), "finished": True,
                 "score": run.score, "block": None}
     await run.save()

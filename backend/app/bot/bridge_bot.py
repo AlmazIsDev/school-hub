@@ -3,7 +3,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from ..core import redis as core_redis
+from ..core import events, redis as core_redis
 from ..modules.bridge import service as bridge_service
 from ..modules.bridge.models import (
     Ban,
@@ -75,13 +75,6 @@ def _parse_payload(raw) -> dict | None:
     return p if isinstance(p, dict) else None
 
 
-async def _publish(type_: str, **data):
-    try:
-        await _r().publish("events", json.dumps({"type": type_, **data}))
-    except Exception:
-        log.warning("%s не опубликован: %s", type_, data)
-
-
 async def _user_by_vk(vk_id: int) -> User | None:
     return await User.find_one(User.vk_id == vk_id)
 
@@ -149,7 +142,7 @@ async def _create_pair(topic: str, request: HelpRequest, helper_id: str, vk) -> 
     if seeker and seeker.vk_id:
         await _send(vk, seeker.vk_id,
                     f"Нашёлся помощник по теме «{topic}»: {helper.full_name if helper else helper_id}.{hint}")
-    await _publish("bridge.pair_created", pair_id=str(pair.id),
+    await events.publish("bridge.pair_created", pair_id=str(pair.id),
                    helper_id=helper_id, seeker_id=request.user_id, topic=topic)
     return pair
 
@@ -230,7 +223,7 @@ async def finish_pair(event, vk):
         if req and req.status == "paired":
             req.status = "closed"
             await req.save()
-    await _publish("bridge.pair_closed", pair_id=str(pair.id),
+    await events.publish("bridge.pair_closed", pair_id=str(pair.id),
                    helper_score=pair.helper_score, seeker_score=pair.seeker_score)
     my_role = "helper" if str(pair.helper_id) == str(u.id) else "seeker"
     other_id = pair.seeker_id if my_role == "helper" else pair.helper_id
