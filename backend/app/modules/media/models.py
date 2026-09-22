@@ -15,6 +15,8 @@ class Post(Document):
     status: Literal["idea", "in_progress", "review", "published"] = "idea"
     assignee_id: str | None = None
     publish_at: datetime | None = None
+    # момент фактического перехода в published — фильтр догонялки бота
+    published_at: datetime | None = None
     created_at: datetime = Field(default_factory=_now)
 
     class Settings:
