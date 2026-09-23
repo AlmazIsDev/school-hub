@@ -12,6 +12,17 @@ export function setTokens(t: Tokens | null) {
   tokens = t;
   if (t) localStorage.setItem("tokens", JSON.stringify(t));
   else localStorage.removeItem("tokens");
+  setActiveSchool(null);
+}
+
+/** Активная школа superadmin'а — бэкенд подставляет её как school_id (X-School-Id). */
+export function getActiveSchool(): string | null {
+  return localStorage.getItem("active_school");
+}
+
+export function setActiveSchool(id: string | null) {
+  if (id) localStorage.setItem("active_school", id);
+  else localStorage.removeItem("active_school");
 }
 
 async function rawFetch(path: string, opts: RequestInit): Promise<Response> {
@@ -21,6 +32,7 @@ async function rawFetch(path: string, opts: RequestInit): Promise<Response> {
       // FormData выставляет свой multipart Content-Type с boundary — не трогаем
       ...(opts.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(tokens ? { Authorization: `Bearer ${tokens.access}` } : {}),
+      ...(getActiveSchool() ? { "X-School-Id": getActiveSchool()! } : {}),
       ...opts.headers,
     },
   });

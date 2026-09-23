@@ -16,7 +16,7 @@ const SLOTS = Array.from({ length: 8 }, (_, i) => i + 1);
 
 export default function DutyPage() {
   const { user } = useAuth();
-  const canEdit = user?.role === "teacher" || user?.role === "admin";
+  const canEdit = user?.role === "teacher" || user?.role === "admin" || user?.role === "superadmin";
 
   return (
     <Stack gap="md">

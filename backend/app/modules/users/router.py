@@ -73,10 +73,14 @@ async def create_user(body: schemas.UserCreateIn, user: dict = Depends(require_r
 @router.get("/users")
 async def list_users(user: dict = Depends(require_role("admin", "teacher"))):
     if not user.get("school_id"):
-        raise HTTPException(403, "Только для сотрудников школы")
-    rows = await User.find(User.school_id == user["school_id"]).to_list()
+        if user.get("role") != "superadmin":
+            raise HTTPException(403, "Только для сотрудников школы")
+        # платформенный админ без выбранной школы — общая база всех школ
+        rows = await User.find_all().to_list()
+    else:
+        rows = await User.find(User.school_id == user["school_id"]).to_list()
     return [{"id": str(u.id), "login": u.login, "full_name": u.full_name, "role": u.role,
-             "class_id": u.class_id, "vk_id": u.vk_id} for u in rows]
+             "school_id": u.school_id, "class_id": u.class_id, "vk_id": u.vk_id} for u in rows]
 
 
 async def _get_user_or_404(user_id: str) -> User:

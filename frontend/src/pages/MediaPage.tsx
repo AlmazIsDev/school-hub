@@ -69,7 +69,7 @@ function PostBody({ text }: { text: string }) {
 
 export default function MediaPage() {
   const { user } = useAuth();
-  const canManage = user?.role === "teacher" || user?.role === "admin";
+  const canManage = user?.role === "teacher" || user?.role === "admin" || user?.role === "superadmin";
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [ideas, setIdeas] = useState<Idea[]>([]);

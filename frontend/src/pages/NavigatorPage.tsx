@@ -42,7 +42,7 @@ function usePlanObjectUrl(planId: string | null | undefined) {
 
 export default function NavigatorPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [error, setError] = useState<string | null>(null);
 

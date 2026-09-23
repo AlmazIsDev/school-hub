@@ -1,14 +1,38 @@
-import { AppShell, Burger, Button, Container, Group, NavLink, Title } from "@mantine/core";
+import { useEffect, useState } from "react";
+import { AppShell, Burger, Button, Container, Group, NavLink, Select, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth";
+import { apiFetch, getActiveSchool, setActiveSchool } from "./api";
+
+type School = { id: string; name: string; code: string };
+
+/** Селектор активной школы для платформенного админа: все API идут в её контексте. */
+function SchoolPicker() {
+  const [schools, setSchools] = useState<School[]>([]);
+  useEffect(() => {
+    apiFetch<School[]>("/schools").then(setSchools).catch(() => {});
+  }, []);
+  if (schools.length === 0) return null;
+  return (
+    <Select
+      placeholder="Школа не выбрана"
+      data={schools.map((s) => ({ value: s.id, label: `${s.name} (${s.code})` }))}
+      value={getActiveSchool()}
+      onChange={(v) => { setActiveSchool(v); window.location.reload(); }}
+      w={240}
+      clearable
+      aria-label="Школа"
+    />
+  );
+}
 
 export default function Layout() {
   const [opened, { toggle }] = useDisclosure(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const canModerate = user?.role === "teacher" || user?.role === "admin";
-  const isAdmin = user?.role === "admin";
+  const canModerate = user?.role === "teacher" || user?.role === "admin" || user?.role === "superadmin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isSuperadmin = user?.role === "superadmin";
 
   return (
@@ -20,6 +44,7 @@ export default function Layout() {
             <Title order={1} size="h3">Школьный хаб</Title>
           </Group>
           <Group>
+            {isSuperadmin && <SchoolPicker />}
             <span>{user?.role}</span>
             <Button variant="subtle" onClick={() => { logout(); navigate("/login"); }}>Выйти</Button>
           </Group>

@@ -43,7 +43,7 @@ function emptyQuestion(): Question {
 
 export default function PollsPage() {
   const { user } = useAuth();
-  const canManage = user?.role === "teacher" || user?.role === "admin";
+  const canManage = user?.role === "teacher" || user?.role === "admin" || user?.role === "superadmin";
 
   const [polls, setPolls] = useState<Poll[]>([]);
   const [classes, setClasses] = useState<SchoolClass[]>([]);

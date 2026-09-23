@@ -44,8 +44,8 @@ const RESOLVE_ACTIONS = [
 
 export default function BridgePage() {
   const { user } = useAuth();
-  const allowed = user?.role === "teacher" || user?.role === "admin";
-  const isAdmin = user?.role === "admin";
+  const allowed = user?.role === "teacher" || user?.role === "admin" || user?.role === "superadmin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   const [reports, setReports] = useState<Report[]>([]);
   const [bans, setBans] = useState<Ban[]>([]);

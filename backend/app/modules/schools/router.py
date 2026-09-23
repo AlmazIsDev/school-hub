@@ -1,4 +1,6 @@
 """CRUD школ — только superadmin. Школьный админ создаётся вместе со школой."""
+import secrets
+
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException
