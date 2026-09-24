@@ -22,18 +22,21 @@ function errMsg(err: unknown, fallback: string) {
 function usePlanObjectUrl(planId: string | null | undefined) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
     setError(null);
-    if (!planId) { setUrl(null); return; }
+    if (!planId) { setUrl(null); setLoading(false); return; }
     let cancelled = false;
     let objectUrl: string | null = null;
+    setLoading(true);
     apiBlob(`/nav/plans/${planId}`)
       .then((b) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(b);
         setUrl(objectUrl);
       })
-      .catch((err) => { if (!cancelled) setError(errMsg(err, "Не удалось загрузить план")); });
+      .catch((err) => { if (!cancelled) setError(errMsg(err, "Не удалось загрузить план")); })
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       // отменяем и поздний резолв, и утечку objectURL при размонтировании/смене плана
       cancelled = true;
@@ -41,7 +44,7 @@ function usePlanObjectUrl(planId: string | null | undefined) {
       setUrl(null);
     };
   }, [planId]);
-  return { url, error };
+  return { url, error, loading };
 }
 
 export default function NavigatorPage() {
@@ -92,7 +95,7 @@ function Viewer({ buildings }: { buildings: Building[] }) {
   const [error, setError] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
-  const { url: planUrl, error: planError } = usePlanObjectUrl(
+  const { url: planUrl, error: planError, loading: planLoading } = usePlanObjectUrl(
     floors.find((f) => f.id === floorId)?.plan_id,
   );
   // этаж, выбранный при переходе из поиска, применяется после загрузки этажей здания
@@ -225,11 +228,13 @@ function Viewer({ buildings }: { buildings: Building[] }) {
       ) : (
         <Group align="flex-start" gap="md">
           <div style={{ flex: 1, minWidth: 320 }}>
-            {currentFloor.plan_id
-              ? <MapView planUrl={planUrl} rooms={rooms} highlightRoomId={highlightRoomId}
-                  selectedRoomId={selectedRoom?.id ?? null} resetKey={resetKey}
-                  onRoomClick={setSelectedRoom} />
-              : <Text c="dimmed">План не загружен.</Text>}
+            {!currentFloor.plan_id
+              ? <Text c="dimmed">План не загружен.</Text>
+              : planLoading
+                ? <Text c="dimmed">Загружаем план…</Text>
+                : <MapView planUrl={planUrl} rooms={rooms} highlightRoomId={highlightRoomId}
+                    selectedRoomId={selectedRoom?.id ?? null} resetKey={resetKey}
+                    onRoomClick={setSelectedRoom} />}
           </div>
           <Stack gap="md" w={240}>
             <Card withBorder mah={480} style={{ overflowY: "auto" }}>
@@ -454,7 +459,7 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
   const [roomName, setRoomName] = useState("");
   const [finishOpen, setFinishOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { url: planUrl, error: planError } = usePlanObjectUrl(floor.plan_id);
+  const { url: planUrl, error: planError, loading: planLoading } = usePlanObjectUrl(floor.plan_id);
 
   async function refresh() {
     try { setRooms(await apiFetch<Room[]>(`/nav/rooms?floor_id=${floor.id}`)); }
@@ -575,7 +580,7 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
             { value: "geom", label: "Форма" },
           ]}
         />
-        <Button component="label" variant="default">
+        <Button component="label" variant="default" loading={busy}>
           {floor.plan_id ? "Заменить план" : "Загрузить план"}
           <input type="file" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg" hidden onChange={uploadPlan} />
         </Button>
@@ -587,6 +592,7 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
       {error && <div role="alert">{error}</div>}
       {planError && <div role="alert">{planError}</div>}
       {geometryDirty && <Text size="sm" fw={600} c="orange">Есть несохранённые правки геометрии.</Text>}
+      {!planUrl && planLoading && <Text size="sm" c="dimmed">Загружаем план…</Text>}
 
       <MapView
         planUrl={planUrl}
