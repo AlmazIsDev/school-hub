@@ -27,7 +27,7 @@ function ScaleBars({ counts }: { counts: Record<string, number> }) {
         <Group key={value} gap="sm" wrap="nowrap">
           <Text size="sm" w={16} ta="right">{value}</Text>
           <Paper flex={1} h={18} bg="gray.1" style={{ overflow: "hidden" }}>
-            {/* CSS-бар вместо @mantine/charts — ради гистограммы тянуть зависимость не стали */}
+            {/* CSS-бар вместо @mantine/charts - ради гистограммы тянуть зависимость не стали */}
             <div style={{ width: `${(n / total) * 100}%`, height: "100%", background: "var(--mantine-color-blue-6)" }} />
           </Paper>
           <Text size="sm" w={30} ta="right">{n}</Text>

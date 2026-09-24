@@ -87,8 +87,8 @@ async def test_published_sends_to_students_with_vk_id(db, fake_redis, vk):
     cid = str((await _insert_class()).id)
     poll = await _mk_poll(cid, [{"text": "Как дела?", "type": "scale1_5"}])
     await _mk_student(vk_id=100, class_id=cid)
-    await _mk_student(vk_id=None, class_id=cid)      # без vk_id — пропускаем
-    await _mk_student(vk_id=200, class_id="other")   # другой класс — пропускаем
+    await _mk_student(vk_id=None, class_id=cid)      # без vk_id - пропускаем
+    await _mk_student(vk_id=200, class_id="other")   # другой класс - пропускаем
 
     await pulse_bot.on_published({"poll_id": str(poll.id)}, vk)
 
@@ -165,7 +165,7 @@ async def test_scale_flow_two_questions_and_finish(db, fake_redis, vk):
     answers = await PollAnswer.find_all().to_list()
     assert [(a.question_idx, a.value) for a in answers] == [(0, "4")]
     assert "Что улучшить?" in vk.calls[0]["message"]
-    assert "keyboard" not in vk.calls[0]  # free_text — без клавиатуры
+    assert "keyboard" not in vk.calls[0]  # free_text - без клавиатуры
 
     # текстовый ответ на второй вопрос
     vk.calls.clear()
@@ -189,7 +189,7 @@ async def test_dedup_second_answer_rejected(db, fake_redis, vk):
                                     "payload": payload, "text": "5"}, vk)
     assert len(await PollAnswer.find_all().to_list()) == 1
 
-    # state после первого ответа удалён; повторное нажатие — «уже ответили»
+    # state после первого ответа удалён; повторное нажатие - «уже ответили»
     await pulse_bot.handle_message({"vk_user_id": 100, "peer_id": 100,
                                     "payload": payload, "text": "5"}, vk)
     assert len(await PollAnswer.find_all().to_list()) == 1
@@ -221,7 +221,7 @@ async def test_insert_failure_rolls_back_dedup_and_state(db, fake_redis, vk, mon
     vk.calls.clear()
     await pulse_bot.handle_message({"vk_user_id": 100, "peer_id": 100,
                                     "payload": payload, "text": "5"}, vk)
-    # дедуп и state откатлены — юзер не заблокирован, может повторить
+    # дедуп и state откатлены - юзер не заблокирован, может повторить
     assert "answered:%s:100" % poll.id not in fake_redis.data
     assert "pollstate:100" not in fake_redis.data
     assert any("Ошибка, попробуйте ещё раз" in c2["message"] for c2 in vk.calls)
@@ -240,7 +240,7 @@ async def test_stale_button_ignored(db, fake_redis, vk):
     await pulse_bot.handle_message({"vk_user_id": 100, "peer_id": 100,
                                     "payload": payload, "text": "4"}, vk)
     vk.calls.clear()
-    # повторное нажатие кнопки q0 при state idx=1 — молча, без ответа и записи
+    # повторное нажатие кнопки q0 при state idx=1 - молча, без ответа и записи
     await pulse_bot.handle_message({"vk_user_id": 100, "peer_id": 100,
                                     "payload": payload, "text": "4"}, vk)
     assert vk.calls == []

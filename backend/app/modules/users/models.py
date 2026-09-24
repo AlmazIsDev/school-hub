@@ -38,9 +38,7 @@ class User(Document):
 
     class Settings:
         name = "users"
-        # None-поля (vk_id, class_id) не пишем в документ: sparse-индекс vk_id
-        # пропускает только отсутствующее поле, явный null индексируется и
-        # второй пользователь с vk_id=None не может создаться
+        # None-поля (vk_id, class_id) не пишем в документ: sparse-индекс vk_id пропускает только отсутствующее поле, явный null индексируется и второй пользователь с vk_id=None не может создаться
         keep_nulls = False
         indexes = [
             IndexModel([("school_id", 1), ("login", 1)], unique=True),

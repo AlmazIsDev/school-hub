@@ -23,12 +23,10 @@ def get_current_user(cred: HTTPAuthorizationCredentials = Depends(bearer),
     user = {
         "id": payload["sub"],
         "role": payload["role"],
-        # старые токены без school_id — до логина повторно
+        # старые токены без school_id - до логина повторно
         "school_id": payload.get("school_id"),
     }
-    # superadmin работает в контексте выбранной школы (фронт шлёт X-School-Id);
-    # без него он видит только платформенные разделы. Кривой id даёт пустые
-    # выборки, чужих данных не достать — отдельная проверка School не нужна.
+    # superadmin работает в контексте выбранной школы (фронт шлёт X-School-Id); без него он видит только платформенные разделы. Кривой id даёт пустые выборки, чужих данных не достать - отдельная проверка School не нужна.
     if user["role"] == SUPERADMIN and request is not None:
         sid = request.headers.get("X-School-Id", "")
         try:

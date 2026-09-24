@@ -71,7 +71,7 @@ async def create_schedule(body: schemas.ScheduleIn, user: dict = Depends(require
     if not zone or zone.school_id != _school(user):
         raise HTTPException(404, "Зона не найдена")
 
-    # валидация учеников: каждый user_id — существующий User с role=student
+    # валидация учеников: каждый user_id - существующий User с role=student
     ids = {s.user_id for s in body.week_pattern}
     try:
         oids = [ObjectId(i) for i in ids]
@@ -84,7 +84,7 @@ async def create_schedule(body: schemas.ScheduleIn, user: dict = Depends(require
         if not u or u.role != "student":
             raise HTTPException(422, f"user_id {uid} не является учеником")
 
-    # дубликат слота (weekday, slot, user_id) в одном графике — ошибка
+    # дубликат слота (weekday, slot, user_id) в одном графике - ошибка
     seen = {(s.weekday, s.slot, s.user_id) for s in body.week_pattern}
     if len(seen) != len(body.week_pattern):
         raise HTTPException(422, "Дубликат слота в week_pattern")
@@ -120,7 +120,7 @@ async def delete_schedule(schedule_id: str, user: dict = Depends(get_current_use
         raise HTTPException(404, "График не найден")
     if user["role"] != "admin" and schedule.teacher_id != user["id"]:
         raise HTTPException(403, "Недостаточно прав")
-    # отметки (completions) при удалении графика не трогаем — история дежурств остаётся
+    # отметки (completions) при удалении графика не трогаем - история дежурств остаётся
     await schedule.delete()
     return {"ok": True}
 
@@ -156,8 +156,7 @@ async def create_completion(body: schemas.CompletionIn, user: dict = Depends(get
     try:
         await completion.insert()
     except DuplicateKeyError:
-        # двойной клик / параллельные POST — compound unique index ловит то,
-        # что find_one выше не успел
+        # двойной клик / параллельные POST - compound unique index ловит то, что find_one выше не успел
         raise HTTPException(409, "Отметка за эту дату уже есть")
     return {"id": str(completion.id), "schedule_id": completion.schedule_id,
             "weekday": completion.weekday, "slot": completion.slot,

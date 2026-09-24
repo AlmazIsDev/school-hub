@@ -100,8 +100,7 @@ def test_validator_bad_next():
 
 
 def test_validator_two_ends_ok():
-    # оба end достижимы: branch ведёт в e1 и e2 — легитимный дизайн,
-    # разные score по веткам; запрещён только ноль достижимых end
+    # оба end достижимы: branch ведёт в e1 и e2 - легитимный дизайн, разные score по веткам; запрещён только ноль достижимых end
     blocks = [
         {"id": "q1", "type": "question", "text": "В", "options": ["а", "б"], "next": "b2"},
         {"id": "b2", "type": "branch", "condition": {"answer": "а"},
@@ -239,7 +238,7 @@ def test_diamond_no_false_positive():
         {"id": "b", "type": "hint", "text": "b", "next": "e"},
         {"id": "e", "type": "end", "score": 5},
     ]
-    # q1.next указывает на a; нужен второй переход q1->b — сделаем через branch
+    # q1.next указывает на a; нужен второй переход q1->b - сделаем через branch
     blocks[0] = {"id": "q1", "type": "branch", "condition": {"answer": "1"},
                  "then": "a", "else": "b"}
     assert validate_structure(QuestStructure(blocks=blocks)) == []
@@ -332,12 +331,12 @@ async def test_play_guards(client, env):
                           json={"run_id": d["run_id"], "block_id": "q1", "value": "ж"},
                           headers=_h(env["student"]))
     assert r.status_code == 422
-    # 422 не сдвинул trace — валидный ответ на тот же блок проходит
+    # 422 не сдвинул trace - валидный ответ на тот же блок проходит
     r = await client.post(f"/api/builder/quests/{qid}/play/answer",
                           json={"run_id": d["run_id"], "block_id": "q1", "value": "а"},
                           headers=_h(env["student"]))
     assert r.status_code == 200
-    # ответ на уже завершённый run — 409
+    # ответ на уже завершённый run - 409
     r = await client.post(f"/api/builder/quests/{qid}/play/answer",
                           json={"run_id": d["run_id"], "block_id": "q1", "value": "а"},
                           headers=_h(env["student"]))

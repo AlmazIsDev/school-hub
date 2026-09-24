@@ -5,8 +5,8 @@ from .models import Ban, StopWord, TutorPair
 
 
 async def text_hit(text: str, school_id: str | None = None) -> str | None:
-    """Первое стоп-слово в тексте или None. Substring по списку из БД — без морфологии.
-    ponytail: substring ловит «мат» в «математике» — держи список от коротких корней,
+    """Первое стоп-слово в тексте или None. Substring по списку из БД - без морфологии.
+    ponytail: substring ловит «мат» в «математике» - держи список от коротких корней,
     по словам/морфологии если ложные срабатывания станут реальной проблемой."""
     low = text.lower()
     flt = {"school_id": school_id} if school_id else {}
@@ -27,7 +27,7 @@ async def active_ban(user_id: str) -> Ban | None:
     for b in bans:
         if b.until is None:
             return b
-        # mongomock в тестах теряет tzinfo — приводим наивное время к UTC
+        # mongomock в тестах теряет tzinfo - приводим наивное время к UTC
         until = b.until if b.until.tzinfo else b.until.replace(tzinfo=timezone.utc)
         if until > now:
             return b

@@ -251,9 +251,9 @@ function ScheduleEditor({ zones, students, busy, onSave }: {
                     key={slot}
                     onClick={() => openCell(key)}
                     style={{ cursor: "pointer", minWidth: 90 }}
-                    title="Клик — назначить ученика"
+                    title="Клик - назначить ученика"
                   >
-                    {uid ? byId.get(uid) ?? uid : <Text c="dimmed" size="sm">—</Text>}
+                    {uid ? byId.get(uid) ?? uid : <Text c="dimmed" size="sm">-</Text>}
                   </Table.Td>
                 );
               })}
@@ -348,7 +348,7 @@ function StudentView() {
           </Table.Thead>
           <Table.Tbody>
             {schedules.flatMap((s) =>
-              // бэк уже фильтрует по user_id, но week_pattern могли отдать целиком — подстраховка
+              // бэк уже фильтрует по user_id, но week_pattern могли отдать целиком - подстраховка
               s.week_pattern.filter((sl) => !myId || sl.user_id === myId).map((sl, i) => (
                 <Table.Tr key={`${s.id}-${i}`}>
                   <Table.Td>{zones.find((z) => z.id === s.zone_id)?.name ?? s.zone_id}</Table.Td>
@@ -368,7 +368,7 @@ function StudentView() {
             )}
           </Table.Tbody>
         </Table>
-        <Text c="dimmed" size="sm" mt="sm">«Отметить» ставит отметку за сегодня. В боте — то же самое.</Text>
+        <Text c="dimmed" size="sm" mt="sm">«Отметить» ставит отметку за сегодня. В боте - то же самое.</Text>
       </Card>
 
       <Card withBorder>

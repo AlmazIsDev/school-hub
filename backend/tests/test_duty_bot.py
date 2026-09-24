@@ -13,9 +13,9 @@ from app.modules.users.models import School, User
 
 # фиксированный «сейчас»: среда (weekday 3) 2026-09-16, 07:35 локального (UTC+3) = 04:35 UTC
 NOW = datetime(2026, 9, 16, 4, 35, tzinfo=timezone.utc)
-# 07:57 локального — окно «начало» слота 1 (8:00)
+# 07:57 локального - окно «начало» слота 1 (8:00)
 TICK_START = datetime(2026, 9, 16, 4, 57, tzinfo=timezone.utc)
-# 10:00 локального — слот 1 давно прошёл, вне обоих окон
+# 10:00 локального - слот 1 давно прошёл, вне обоих окон
 TICK_LATE = datetime(2026, 9, 16, 7, 0, tzinfo=timezone.utc)
 
 
@@ -140,13 +140,13 @@ async def test_done_ignores_foreign_slot(db, fake_redis, vk):
 async def test_tick_soon_window_and_antidup(db, fake_redis, vk):
     u = await _mk_student()
     await _mk_schedule(str(u.id), [(3, 1)])
-    await duty_bot.duty_tick(NOW, vk)  # 07:35 — окно 25-35 мин до слота 1
+    await duty_bot.duty_tick(NOW, vk)  # 07:35 - окно 25-35 мин до слота 1
     assert len(vk.calls) == 1
     assert "Через 30 минут" in vk.calls[0]["message"]
     assert any(k.startswith("duty_rem:") for k in fake_redis.data)
 
     vk.calls.clear()
-    await duty_bot.duty_tick(NOW, vk)  # второй вызов — антидубль, тишина
+    await duty_bot.duty_tick(NOW, vk)  # второй вызов - антидубль, тишина
     assert vk.calls == []
 
 
@@ -169,7 +169,7 @@ async def test_tick_skips_other_weekday_and_userless(db, fake_redis, vk):
     u = await _mk_student()
     no_vk = User(school_id=await ensure_school(), login="s9", password_hash="x", full_name="У", role="student", vk_id=None)
     await no_vk.insert()
-    await _mk_schedule(str(u.id), [(4, 1)])      # четверг — не сегодня
+    await _mk_schedule(str(u.id), [(4, 1)])      # четверг - не сегодня
     await _mk_schedule(str(no_vk.id), [(3, 1)])  # слот есть, vk не привязан
     await duty_bot.duty_tick(NOW, vk)
     assert vk.calls == []

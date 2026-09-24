@@ -16,8 +16,7 @@ def create_app() -> FastAPI:
         await service.ensure_superadmin(
             login=settings.admin_login, password=settings.admin_password,
             full_name=settings.admin_name)
-        # разовый фиксап: до keep_nulls=False vk_id/class_id писались как null,
-        # что ломало sparse-уникальный индекс vk_id (второй юзер не создавался)
+        # разовый фиксап: до keep_nulls=False vk_id/class_id писались как null, что ломало sparse-уникальный индекс vk_id (второй юзер не создавался)
         from .core.db import get_motor_client
         await get_motor_client().get_database().users.update_many(
             {"vk_id": None}, {"$unset": {"vk_id": ""}})
@@ -39,7 +38,7 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
-        # наружу — без стека, в лог — со стеком и request_id
+        # наружу - без стека, в лог - со стеком и request_id
         logging.getLogger("api").exception(
             "unhandled: %s %s", request.method, request.url.path)
         return JSONResponse(status_code=500, content={"detail": "Внутренняя ошибка сервера"})

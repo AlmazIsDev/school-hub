@@ -138,7 +138,7 @@ async def test_idea_rights_and_accept(client, tokens):
     assert r.json()["status"] == "new"
     idea_id = r.json()["id"]
 
-    # список идей — только teacher/admin
+    # список идей - только teacher/admin
     r = await client.get("/api/media/ideas", headers=_h(tokens["student"]))
     assert r.status_code == 403
     r = await client.get("/api/media/ideas?status=new", headers=_h(tokens["teacher"]))
@@ -154,7 +154,7 @@ async def test_idea_rights_and_accept(client, tokens):
     assert data["post"]["title"] == "Сделать репортаж о субботнике"
     assert data["post"]["body"] == "Сделать репортаж о субботнике"
 
-    # повторный accept/reject — 409
+    # повторный accept/reject - 409
     r = await client.post(f"/api/media/ideas/{idea_id}/accept", headers=_h(tokens["admin"]))
     assert r.status_code == 409
     r = await client.post(f"/api/media/ideas/{idea_id}/reject", headers=_h(tokens["admin"]))
@@ -191,7 +191,7 @@ async def test_student_sees_only_published(client, db):
     pid = (await client.post(f"/api/media/ideas/{iid}/accept", headers=th)).json()["post"]["id"]
     r = await client.get("/api/media/posts", headers=st)
     assert all(p["id"] != pid for p in r.json())
-    # переводим в published — теперь виден
+    # переводим в published - теперь виден
     for s in ("in_progress", "review", "published"):
         assert (await client.patch(f"/api/media/posts/{pid}", json={"status": s}, headers=th)).status_code == 200
     r = await client.get("/api/media/posts", headers=st)

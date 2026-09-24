@@ -10,9 +10,9 @@ class Settings(BaseSettings):
     vk_token: str = ""
     vk_group_id: int = 0
     admin_login: str = "admin"
-    admin_password: str = ""  # пусто — админ не создаётся
+    admin_password: str = ""  # пусто - админ не создаётся
     admin_name: str = "Администратор"
-    frontend_url: str = ""  # для ссылок из бота, пусто — без ссылок
+    frontend_url: str = ""  # для ссылок из бота, пусто - без ссылок
 
     model_config = {"env_file": ".env"}
 

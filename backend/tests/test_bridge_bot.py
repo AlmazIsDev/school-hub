@@ -110,7 +110,7 @@ async def test_become_helper_state_machine(db, fake_redis, vk):
     assert [(t.user_id, t.topic) for t in topics] == [(str(u.id), "алгебра")]
     assert "bridgestate:100" not in fake_redis.data
 
-    # повторная регистрация той же темы — дубликат не создаётся
+    # повторная регистрация той же темы - дубликат не создаётся
     await bridge_bot.start_become_helper({"vk_user_id": 100, "peer_id": 100}, vk)
     await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "алгебра"}, vk)
     await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100,
@@ -163,7 +163,7 @@ async def test_need_help_no_helper_waiting_then_try_match(db, fake_redis, vk):
     assert req.status == "waiting"
     assert any("Пока никого нет" in c["message"] for c in _calls_to(vk, 200))
 
-    # регистрируется помощник — try_match подбирает waiting-заявку
+    # регистрируется помощник - try_match подбирает waiting-заявку
     helper = await _mk_user(100, "Помощник")
     await bridge_bot.start_become_helper({"vk_user_id": 100, "peer_id": 100}, vk)
     await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "химия"}, vk)
@@ -180,11 +180,11 @@ async def test_need_help_no_helper_waiting_then_try_match(db, fake_redis, vk):
 
 
 async def test_match_excludes_self_banned_and_loads(db, fake_redis, vk):
-    await _mk_user(100, "Сам")        # сам заявитель — исключён, хоть и помощник
+    await _mk_user(100, "Сам")        # сам заявитель - исключён, хоть и помощник
     banned = await _mk_user(300, "Бан")
     await HelperTopic(school_id=await ensure_school(), user_id=str((await User.find_one(User.vk_id == 100)).id), topic="физика").insert()
     await HelperTopic(school_id=await ensure_school(), user_id=str(banned.id), topic="физика").insert()
-    await Ban(school_id=await ensure_school(), user_id=str(banned.id), reason="тест").insert()  # until=None — навсегда
+    await Ban(school_id=await ensure_school(), user_id=str(banned.id), reason="тест").insert()  # until=None - навсегда
     free = await _mk_user(400, "Свободный")
     loaded = await _mk_user(500, "Загруженный")
     await HelperTopic(school_id=await ensure_school(), user_id=str(free.id), topic="физика").insert()
@@ -318,7 +318,7 @@ async def test_banned_in_pair_no_forward(db, fake_redis, vk):
     helper = await _mk_user(100, "Помощник")
     seeker = await _mk_user(200, "Заявитель")
     await TutorPair(school_id=await ensure_school(), helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
-    await Ban(school_id=await ensure_school(), user_id=str(helper.id), reason="тест").insert()  # until=None — навсегда
+    await Ban(school_id=await ensure_school(), user_id=str(helper.id), reason="тест").insert()  # until=None - навсегда
 
     await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "привет"}, vk)
     assert len(await PairMessage.find_all().to_list()) == 0
@@ -381,7 +381,7 @@ async def test_poll_state_takes_priority(db, fake_redis, vk):
     helper = await _mk_user(100, "П")
     seeker = await _mk_user(200, "З")
     await TutorPair(school_id=await ensure_school(), helper_id=str(helper.id), seeker_id=str(seeker.id), chat_key="ck").insert()
-    # юзер посреди опроса — bridge его текст не трогает
+    # юзер посреди опроса - bridge его текст не трогает
     fake_redis.data["pollstate:100"] = json.dumps({"poll_id": "x", "idx": 0})
     await bridge_bot.handle_message({"vk_user_id": 100, "peer_id": 100, "text": "привет"}, vk)
     assert len(await PairMessage.find_all().to_list()) == 0

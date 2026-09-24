@@ -33,7 +33,7 @@ const STATUS_BADGE: Record<Poll["status"], { color: string; label: string }> = {
 };
 
 const TYPE_OPTIONS = [
-  { value: "scale1_5", label: "Шкала 1–5" },
+  { value: "scale1_5", label: "Шкала 1-5" },
   { value: "free_text", label: "Свободный ответ" },
 ];
 
@@ -135,12 +135,12 @@ export default function PollsPage() {
     closedByTopic.set(p.topic, [...(closedByTopic.get(p.topic) ?? []), p]);
   }
 
-  // В списке B — только опросы той же темы, что выбрана в A
+  // В списке B - только опросы той же темы, что выбрана в A
   function sameAsA(topics: [string, Poll[]][], pollA: string) {
     const topic = topics.flatMap(([t, ps]) => (ps.some((p) => p.id === pollA) ? [t] : []))[0];
     return (topics.find(([t]) => t === topic)?.[1] ?? [])
       .filter((p) => p.id !== pollA)
-      .map((p) => ({ value: p.id, label: `${topic} — ${p.title}` }));
+      .map((p) => ({ value: p.id, label: `${topic} - ${p.title}` }));
   }
 
   async function runCompare() {
@@ -172,8 +172,8 @@ export default function PollsPage() {
           {Array.from({ length: Math.max(compareResult.a.avgs.length, compareResult.b.avgs.length) }, (_, i) => (
             <Table.Tr key={i}>
               <Table.Td>Вопрос {i + 1}</Table.Td>
-              <Table.Td>{compareResult.a.avgs[i] ?? "—"}</Table.Td>
-              <Table.Td>{compareResult!.b.avgs[i] ?? "—"}</Table.Td>
+              <Table.Td>{compareResult.a.avgs[i] ?? "-"}</Table.Td>
+              <Table.Td>{compareResult!.b.avgs[i] ?? "-"}</Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
@@ -255,7 +255,7 @@ export default function PollsPage() {
                 onChange={(v) => setThreshold(typeof v === "number" ? v : 3.5)}
               />
             </Group>
-            {weak.length === 0 && <Text c="dimmed" size="sm">Всё в порядке — просевших тем нет.</Text>}
+            {weak.length === 0 && <Text c="dimmed" size="sm">Всё в порядке - просевших тем нет.</Text>}
             <Table withTableBorder verticalSpacing="xs">
               <Table.Thead>
                 <Table.Tr>
@@ -287,7 +287,7 @@ export default function PollsPage() {
             <Group align="flex-end" gap="sm">
               <Select
                 label="Опрос A"
-                data={comparableTopics.flatMap(([topic, ps]) => ps.map((p) => ({ value: p.id, label: `${topic} — ${p.title}` })))}
+                data={comparableTopics.flatMap(([topic, ps]) => ps.map((p) => ({ value: p.id, label: `${topic} - ${p.title}` })))}
                 value={compareA}
                 onChange={(v) => { setCompareA(v ?? ""); setCompareB(""); setCompareResult(null); }}
                 w={320}

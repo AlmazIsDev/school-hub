@@ -124,6 +124,6 @@ async def helpers_rating(user: dict = Depends(require_role("teacher", "admin")))
         stats = await service.helper_stats(uid)
         out.append({"user_id": uid, "full_name": await service.full_name(uid),
                     "topics": sorted(set(tps)), **stats})
-    # навсегда без оценок — вниз, с оценками — по убыванию средней
+    # навсегда без оценок - вниз, с оценками - по убыванию средней
     out.sort(key=lambda x: (x["avg_score"] is None, -(x["avg_score"] or 0)))
     return out

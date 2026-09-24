@@ -13,7 +13,7 @@ from .handlers import register
 from .longpoll import run_forever
 
 REMIND_EVERY = 300  # сек: цикл напоминаний duty
-# TTL дедуп-ключа media_bot — дольше этого срока анонс не догоняем
+# TTL дедуп-ключа media_bot - дольше этого срока анонс не догоняем
 MEDIA_CATCHUP_WINDOW = 604800
 
 
@@ -39,19 +39,17 @@ async def main():
     logging.basicConfig(level=logging.INFO)
     await init_mongo()
     if not settings.vk_token:
-        logging.warning("VK_TOKEN пуст — бот не запущен")
+        logging.warning("VK_TOKEN пуст - бот не запущен")
         return
     events.subscribe("poll.published", pulse_bot.on_published)
     events.subscribe("media.published", media_bot.on_published)
     dp = Dispatcher()
     register(dp)
     vk = VKClient()
-    # pub/sub не персистентен: догоняем рассылки, чьи события ушли,
-    # пока бот был выключен
+    # pub/sub не персистентен: догоняем рассылки, чьи события ушли, пока бот был выключен
     await pulse_bot.catch_up_unnotified(vk)
     await catch_up_media(vk)
-    # long poll и pub/sub параллельно: long poll — входящие сообщения,
-    # events — рассылки; напоминания duty — отдельная таска, без планировщика
+    # long poll и pub/sub параллельно: long poll - входящие сообщения, events - рассылки; напоминания duty - отдельная таска, без планировщика
     await asyncio.gather(run_forever(vk, dp), events.listen(vk), duty_loop(vk))
 
 

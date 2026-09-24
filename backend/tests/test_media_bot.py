@@ -88,8 +88,8 @@ async def test_idea_notifies_editors(db, fake_redis, vk):
     await _mk_user(role="student", vk_id=100, full_name="Вася")
     t1 = await _mk_user(role="teacher", vk_id=201, full_name="Т1")
     t2 = await _mk_user(role="teacher", vk_id=202, full_name="Т2")
-    await _mk_user(role="teacher", vk_id=None)  # без vk — не спамим
-    await _mk_user(role="student", vk_id=300)  # ученик — не редактор
+    await _mk_user(role="teacher", vk_id=None)  # без vk - не спамим
+    await _mk_user(role="student", vk_id=300)  # ученик - не редактор
     await media_bot.handle_idea(_idea_event("идея Про школу"), vk)
     editor_msgs = [c for c in vk.calls if c["peer_id"] in (201, 202)]
     assert len(editor_msgs) == 2
@@ -115,14 +115,14 @@ async def test_idea_unbound_gets_hint(db, fake_redis, vk):
 async def test_published_broadcast(db, fake_redis, vk):
     await _mk_user(role="student", vk_id=100)
     await _mk_user(role="student", vk_id=200)
-    await _mk_user(role="student", vk_id=None)  # без vk — мимо
-    await _mk_user(role="teacher", vk_id=300)  # учитель — мимо
+    await _mk_user(role="student", vk_id=None)  # без vk - мимо
+    await _mk_user(role="teacher", vk_id=300)  # учитель - мимо
     post = await Post(school_id=await ensure_school(), title="Т", body="Б" * 500, status="published").insert()
     await media_bot.on_published({"post_id": str(post.id)}, vk)
     peers = [c["peer_id"] for c in vk.calls]
     assert sorted(peers) == [100, 200]
     msg = vk.calls[0]["message"]
-    assert "Т" in msg and "Б" * 400 in msg and "Полностью — на сайте" in msg
+    assert "Т" in msg and "Б" * 400 in msg and "Полностью - на сайте" in msg
 
 
 async def test_published_broken_event_silent(db, fake_redis, vk):

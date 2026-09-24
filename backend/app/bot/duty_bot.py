@@ -13,10 +13,9 @@ log = logging.getLogger("bot")
 
 # школа в РФ: все «сегодня/сейчас» считаем в UTC+3, без зоны в настройках
 TZ_OFFSET = 3
-REM_TTL = 43200  # 12h — антидубль напоминаний
+REM_TTL = 43200  # 12h - антидубль напоминаний
 
-# ponytail: расписание звонков упрощённое (слот N начинается в 8:00 + (N-1)*60 мин),
-# поправить на реальное расписание школы, когда узнаем
+# ponytail: расписание звонков упрощённое (слот N начинается в 8:00 + (N-1)*60 мин), поправить на реальное расписание школы, когда узнаем
 SLOT_START_MIN = 8 * 60  # 8:00
 SLOT_LEN_MIN = 60
 
@@ -42,7 +41,7 @@ def slot_start_hhmm(slot: int) -> str:
 
 def _now_slot_rank(local: datetime) -> int:
     """Индекс текущего слота: 0 = ещё до первого, N = слот N идёт/начался.
-    ponytail: слот считается «прошедшим» с момента начала — длительность
+    ponytail: слот считается «прошедшим» с момента начала - длительность
     слота вне рабочего дня (16:00+) не отслеживаем, ранг просто растёт."""
     minutes = local.hour * 60 + local.minute
     return (minutes - SLOT_START_MIN) // SLOT_LEN_MIN + 1
@@ -58,7 +57,7 @@ def _kb_done(schedule_id: str, weekday: int, slot: int) -> str:
 
 async def nearest_slot(user_id: str, now: datetime):
     """Ближайший слот ученика: (schedule, slot) с (weekday, slot) >= сейчас,
-    или None. Перенос на следующую неделю не ищем — «на этой неделе нет»."""
+    или None. Перенос на следующую неделю не ищем - «на этой неделе нет»."""
     loc = _local(now)
     cur = (loc.isoweekday(), max(1, _now_slot_rank(loc)))
     best = None
@@ -103,7 +102,7 @@ async def _on_done(payload: dict, event, vk, now: datetime | None = None):
     if not schedule:
         return
     loc = _local(now or datetime.now(timezone.utc))
-    # отметка только в день дежурства — старые клавиатуры VK сохраняются в переписке
+    # отметка только в день дежурства - старые клавиатуры VK сохраняются в переписке
     if weekday != loc.isoweekday():
         return
     if not any(s.user_id == str(u.id) and s.weekday == weekday and s.slot == slot
@@ -142,8 +141,8 @@ async def handle_message(event, vk, now: datetime | None = None):
 
 
 async def duty_tick(now: datetime, vk):
-    """Напоминания о слотах сегодня: за 30 мин (окно 25–35) и в начале
-    (окно 0–5). Антидубль — Redis-ключ на 12h (get → отправка → set)."""
+    """Напоминания о слотах сегодня: за 30 мин (окно 25-35) и в начале
+    (окно 0-5). Антидубль - Redis-ключ на 12h (get → отправка → set)."""
     loc = _local(now)
     today_wd = loc.isoweekday()
     date = loc.date().isoformat()
@@ -181,5 +180,5 @@ async def duty_tick(now: datetime, vk):
             except Exception:
                 log.exception("напоминание duty не дошло vk=%s", users[sl.user_id])
                 continue
-            # ключ только после успешной отправки — при сбое VK напоминание повторится
+            # ключ только после успешной отправки - при сбое VK напоминание повторится
             await _r().set(key, "1", ex=REM_TTL)

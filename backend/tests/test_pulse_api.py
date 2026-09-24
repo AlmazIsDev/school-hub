@@ -127,7 +127,7 @@ async def test_student_sees_only_active_own_class(client, db):
     cid = await _mk_class()
     sh = {"Authorization": f"Bearer {await _mk_user('s2', 'student', class_id=cid)}"}
     pid = await _mk_poll(client, ch, cid)
-    # draft — ученику не виден ни в списке, ни напрямую
+    # draft - ученику не виден ни в списке, ни напрямую
     r = await client.get("/api/pulse/polls", headers=sh)
     assert r.status_code == 200 and r.json() == []
     r = await client.get(f"/api/pulse/polls/{pid}", headers=sh)
@@ -137,7 +137,7 @@ async def test_student_sees_only_active_own_class(client, db):
     assert [p["id"] for p in r.json()] == [pid]
     r = await client.get(f"/api/pulse/polls/{pid}", headers=sh)
     assert r.status_code == 200
-    # closed — снова не виден
+    # closed - снова не виден
     await client.post(f"/api/pulse/polls/{pid}/close", headers=ch)
     r = await client.get(f"/api/pulse/polls/{pid}", headers=sh)
     assert r.status_code == 403
@@ -188,7 +188,7 @@ async def test_results_scale_counts_and_free_text(client, db):
     ])
     await _answer(pid, 0, "1"); await _answer(pid, 0, "5"); await _answer(pid, 0, "5")
     await _answer(pid, 1, "норм"); await _answer(pid, 1, "можно лучше")
-    # мусорное значение шкалы — не в counts
+    # мусорное значение шкалы - не в counts
     await _answer(pid, 0, "9")
     r = await client.get(f"/api/pulse/polls/{pid}/results", headers=h)
     assert r.status_code == 200
@@ -244,11 +244,11 @@ async def test_results_other_teacher_403(client, db):
 async def test_topics_threshold_filter(client, db):
     good_h = {"Authorization": f"Bearer {await _mk_user('t15', 'teacher')}"}
     cid = await _mk_class()
-    # avg 4.0 — не попадёт
+    # avg 4.0 - не попадёт
     good = await _mk_poll_full(client, good_h, cid, topic="Хорошая")
     for v in ("4", "4", "4", "4"):
         await _answer(good, 0, v)
-    # avg 2.5 — попадёт
+    # avg 2.5 - попадёт
     bad = await _mk_poll_full(client, good_h, cid, topic="Плохая")
     for v in ("2", "3"):
         await _answer(bad, 0, v)

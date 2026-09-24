@@ -58,7 +58,7 @@ function emptyBlock(id: string): Block {
   return { id, type: "question", text: "", options: ["", ""], next: "", conditionAnswer: "", then: "", else: "", score: 0 };
 }
 
-/** id автогенерируем на клиенте: b1, b2... — берём свободный номер */
+/** id автогенерируем на клиенте: b1, b2... - берём свободный номер */
 function nextBlockId(blocks: Block[]): string {
   const used = new Set(blocks.map((b) => b.id));
   for (let i = 1; ; i++) {
@@ -167,7 +167,7 @@ export default function BuilderPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    // лёгкая клиентская проверка только для UX — остальное скажет валидатор бэка
+    // лёгкая клиентская проверка только для UX - остальное скажет валидатор бэка
     if (!title.trim() || !classId || blocks.length === 0) {
       setError("Заполните название и класс, добавьте хотя бы один блок");
       return;
@@ -202,7 +202,7 @@ export default function BuilderPage() {
 
   const classOptions = classes.map((c) => ({ value: c.id, label: `${c.grade}«${c.letter}»` }));
   const idOptions = blocks.map((b) => ({ value: b.id, label: `${b.id} (${TYPE_LABEL[b.type]})` }));
-  const idWithEmpty = [{ value: "", label: "— выберите блок —" }, ...idOptions];
+  const idWithEmpty = [{ value: "", label: "- выберите блок -" }, ...idOptions];
 
   function renderBlockFields(b: Block, i: number) {
     if (b.type === "question") {
@@ -266,7 +266,7 @@ export default function BuilderPage() {
             onChange={(e) => setClassId(e.currentTarget.value)}
             required
           />
-          <Text size="sm" c="dimmed">Первый блок — стартовый, прохождение начинается с него.</Text>
+          <Text size="sm" c="dimmed">Первый блок - стартовый, прохождение начинается с него.</Text>
           {blocks.map((b, i) => (
             <Card key={b.id} withBorder padding="sm" radius="sm">
               <Stack gap="xs">
@@ -324,8 +324,8 @@ export default function BuilderPage() {
               <Text>Запусков: <b>{stats.runs}</b></Text>
               <Text>Дошли до конца: <b>{stats.finished}</b></Text>
               <Text>Бросили на середине: <b>{stats.runs - stats.finished}</b></Text>
-              <Text>Средний балл: <b>{stats.avg_score ?? "—"}</b></Text>
-              <Text>Среднее время: <b>{stats.avg_duration_sec ? formatDuration(stats.avg_duration_sec) : "—"}</b></Text>
+              <Text>Средний балл: <b>{stats.avg_score ?? "-"}</b></Text>
+              <Text>Среднее время: <b>{stats.avg_duration_sec ? formatDuration(stats.avg_duration_sec) : "-"}</b></Text>
             </Group>
             <Table withTableBorder verticalSpacing="xs" maw={560}>
               <Table.Thead>

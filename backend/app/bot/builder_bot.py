@@ -11,7 +11,7 @@ from .pulse_bot import _send
 
 log = logging.getLogger("bot")
 
-STATE_TTL = 60 * 60  # 1 час — квест может идти дольше опроса
+STATE_TTL = 60 * 60  # 1 час - квест может идти дольше опроса
 
 NO_QUESTS = "Квестов пока нет."
 INTERRUPTED = "Квест прерван."
@@ -28,7 +28,7 @@ def _state_key(vk_id: int) -> str:
 
 
 def _clear_foreign_states(vk_id: int):
-    """Чужие сценарии гасим при старте своего — цифра «1» не должна
+    """Чужие сценарии гасим при старте своего - цифра «1» не должна
     одновременно отвечать в опрос и выбирать квест."""
     return _r().delete(f"pollstate:{vk_id}", f"bridgestate:{vk_id}")
 
@@ -82,7 +82,7 @@ async def handle_quest(event, vk):
 
 
 def _next_block_id(quest: Quest, blocks: dict, block_id: str, last_value: str | None) -> str | None:
-    """Переход из блока; branch-блоки не показываются — резолвим сразу
+    """Переход из блока; branch-блоки не показываются - резолвим сразу
     (branch на branch допустим, циклы валидатор запрещает, так что loop конечен)."""
     bid = block_id
     while True:
@@ -111,11 +111,11 @@ async def send_block(vk, peer_id: int, quest: Quest, run: QuestRun,
                                    "run_id": str(run.id), "block_id": block_id}),
                        ex=STATE_TTL)
         await _send(vk, peer_id, b["text"], _kb_next(block_id))
-    else:  # end — финал
+    else:  # end - финал
         run.finished = True
         run.score = b["score"]
         run.finished_at = now or datetime.now(timezone.utc)
-        # end попадает в trace — иначе воронка статистики покажет на финале ноль
+        # end попадает в trace - иначе воронка статистики покажет на финале ноль
         run.trace.append({"block_id": block_id, "value": None})
         await run.save()
         await _r().delete(_state_key(peer_id))
@@ -137,7 +137,7 @@ async def _start_run(vk, vk_id: int, peer_id: int, quest: Quest):
 
 
 async def handle_message(event, vk, now: datetime | None = None):
-    """Кнопки и текст квест-сценария. Не наш payload/state — молча."""
+    """Кнопки и текст квест-сценария. Не наш payload/state - молча."""
     vk_id, peer = event["vk_user_id"], event["peer_id"]
     r = _r()
     state_raw = await r.get(_state_key(vk_id))
@@ -151,7 +151,7 @@ async def handle_message(event, vk, now: datetime | None = None):
         except ValueError:
             return
         if not isinstance(p, dict) or p.get("quest") not in ("ans", "next"):
-            return  # чужой/битый payload — молча
+            return  # чужой/битый payload - молча
         if not state_raw:
             return
 
@@ -219,7 +219,7 @@ async def handle_message(event, vk, now: datetime | None = None):
     try:
         nxt = b["next"]
     except KeyError:
-        return  # кривой payload на блоке без next — молча
+        return  # кривой payload на блоке без next - молча
     run.trace.append({"block_id": block_id, "value": value})
     await run.save()
     target = _next_block_id(quest, blocks, nxt, value)

@@ -55,7 +55,7 @@ async def test_vk_unlink_deleted_user_401(client, db):
     assert r.status_code == 401
 
 async def test_create_student_with_class(client, db):
-    """Регресс: class_id в UserCreateIn был int — ученик с классом не создавался."""
+    """Регресс: class_id в UserCreateIn был int - ученик с классом не создавался."""
     from app.modules.users.models import SchoolClass, User
     from app.modules.users.service import create_user
     cls = SchoolClass(school_id=await ensure_school(), grade=7, letter="Б")

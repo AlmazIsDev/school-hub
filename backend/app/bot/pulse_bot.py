@@ -45,7 +45,7 @@ def build_keyboard(poll_id: str, idx: int) -> str:
 
 
 async def _send(vk, peer_id: int, message: str, keyboard: str | None = None):
-    # random_id=0 VK не дедуплицирует — генерим случайный
+    # random_id=0 VK не дедуплицирует - генерим случайный
     params = {"peer_id": peer_id, "random_id": random.randrange(2**31), "message": message}
     if keyboard:
         params["keyboard"] = keyboard
@@ -53,8 +53,7 @@ async def _send(vk, peer_id: int, message: str, keyboard: str | None = None):
 
 
 async def send_question(vk, peer_id: int, poll: Poll, idx: int):
-    # state мог указывать за пределы вопросов (кривой/протухший state) —
-    # трактуем как закрытый опрос; в боте peer_id == vk_id
+    # state мог указывать за пределы вопросов (кривой/протухший state) - трактуем как закрытый опрос; в боте peer_id == vk_id
     if idx >= len(poll.questions):
         await _r().delete(_state_key(peer_id))
         await _send(vk, peer_id, CLOSED)
@@ -66,7 +65,7 @@ async def send_question(vk, peer_id: int, poll: Poll, idx: int):
 
 
 async def start_poll(vk, vk_id: int, poll: Poll):
-    # чужой активный сценарий гасим — кнопки не должны стартовать два сценария сразу
+    # чужой активный сценарий гасим - кнопки не должны стартовать два сценария сразу
     await _r().delete(f"queststate:{vk_id}", f"bridgestate:{vk_id}")
     await _r().set(
         _state_key(vk_id),
@@ -97,7 +96,7 @@ async def on_published(payload: dict, vk):
 
 
 async def handle_poll_command(event, vk):
-    """«опрос» — активные опросы класса по запросу (могли пропустить рассылку)."""
+    """«опрос» - активные опросы класса по запросу (могли пропустить рассылку)."""
     u = await User.find_one(User.vk_id == event["vk_user_id"])
     if not u or u.role != "student" or not u.class_id:
         await _send(vk, event["peer_id"], "Опросы доступны ученикам после привязки аккаунта.")
@@ -130,7 +129,7 @@ async def catch_up_unnotified(vk):
 async def handle_message(event: dict, vk):
     """Последний обработчик диспетчера: кнопки опроса и свободные ответы.
 
-    Если сценарий опроса не наш (нет payload и нет state) — молча выходим,
+    Если сценарий опроса не наш (нет payload и нет state) - молча выходим,
     другие хендлеры уже отработали до нас.
     """
     vk_id = event["vk_user_id"]
@@ -146,17 +145,17 @@ async def handle_message(event: dict, vk):
         if not isinstance(p, dict) or "poll" not in p:
             return
         if not state_raw:
-            # state истёк/потерян — если уже отвечал, вежливо скажем
+            # state истёк/потерян - если уже отвечал, вежливо скажем
             if await r.exists(f"answered:{p['poll']}:{vk_id}"):
                 await _send(vk, event["peer_id"], ALREADY)
             return
         state = json.loads(state_raw)
         if state.get("poll_id") != p["poll"] or state.get("idx") != p["q"]:
-            return  # stale-кнопка от старого вопроса — молча игнор
+            return  # stale-кнопка от старого вопроса - молча игнор
         try:
             poll_id, idx, value = p["poll"], int(p["q"]), str(p["v"])
         except (KeyError, TypeError, ValueError):
-            return  # кривой payload — молча игнор
+            return  # кривой payload - молча игнор
     else:
         if not state_raw:
             return
@@ -175,11 +174,8 @@ async def handle_message(event: dict, vk):
         await _send(vk, event["peer_id"], CLOSED)
         return
 
-    # Дедуп — один раз на опрос, при ответе на первый вопрос. Дальше идём по
-    # state (индекс в нём гарантирует, что вопрос уже отвечен или ещё не начат).
-    # ВАЖНО для аналитики (T4): state мог истечь на середине — частичные ответы
-    # попадут в базу. Полнота ответа определяется наличием ответа на последний
-    # вопрос — учесть при агрегации.
+    # Дедуп - один раз на опрос, при ответе на первый вопрос. Дальше идём по state (индекс в нём гарантирует, что вопрос уже отвечен или ещё не начат).
+    # ВАЖНО для аналитики (T4): state мог истечь на середине - частичные ответы попадут в базу. Полнота ответа определяется наличием ответа на последний вопрос - учесть при агрегации.
     if idx == 0 and not await r.set(f"answered:{poll_id}:{vk_id}", "1", nx=True, ex=DEDUP_TTL):
         await r.delete(_state_key(vk_id))
         await _send(vk, event["peer_id"], ALREADY)

@@ -52,9 +52,7 @@ async def delete_building(building_id: str, user: dict = Depends(require_role("a
         raise HTTPException(404, "Здание не найдено")
     floors = await Floor.find(Floor.building_id == building_id).to_list()
     if floors:
-        # каскад: этажи с комнатами снесём вместе со зданием
-        # ponytail: без транзакции (нужен replica set) — здание удаляем последним,
-        # сироты при сбое halfway не видны в поиске по живому зданию
+        # каскад: этажи с комнатами снесём вместе со зданием ponytail: без транзакции (нужен replica set) - здание удаляем последним, сироты при сбое halfway не видны в поиске по живому зданию
         floor_ids = [str(f.id) for f in floors]
         await Room.find({"floor_id": {"$in": floor_ids}}).delete()
         for f in floors:
@@ -153,7 +151,7 @@ async def get_plan(plan_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(404, "План не найден")
     content = await grid_out.read()
     content_type = (grid_out.metadata or {}).get("content_type", "application/octet-stream")
-    # attachment + sandbox: SVG может содержать script — не даём ему исполниться в origin
+    # attachment + sandbox: SVG может содержать script - не даём ему исполниться в origin
     ext = content_type.split("/")[-1].replace("svg+xml", "svg").replace("jpeg", "jpg")
     return Response(
         content=content, media_type=content_type,

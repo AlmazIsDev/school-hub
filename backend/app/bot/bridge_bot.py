@@ -27,12 +27,12 @@ IN_PAIR = "Ты уже в паре. Напиши «закончить», ког�
 
 ASK_TOPIC = "Какой предмет? Напиши тему одним сообщением."
 CONFIRM = "Регистрируем тебя как помощника по теме «{topic}»?"
-NOT_FOUND = ("Пока никого нет по теме «{topic}». Заявка висит — сообщим, "
+NOT_FOUND = ("Пока никого нет по теме «{topic}». Заявка висит - сообщим, "
              "как найдётся помощник.")
 NO_PAIR = "Активной пары нет. Напиши «нужна помощь» или «стать помощником»."
 STOP_HIT = ("Сообщение не доставлено: обнаружено запрещённое слово. "
             "Модераторы увидят репорт.")
-NOT_BOUND = "Напарник не привязал VK — сообщение сохранено, но не доставлено."
+NOT_BOUND = "Напарник не привязал VK - сообщение сохранено, но не доставлено."
 
 
 def _r():
@@ -44,7 +44,7 @@ def _state_key(vk_id: int) -> str:
 
 
 async def _set_state(vk_id: int, state: dict):
-    # чужой активный сценарий гасим — кнопки не должны стартовать два сценария сразу
+    # чужой активный сценарий гасим - кнопки не должны стартовать два сценария сразу
     await _r().delete(f"queststate:{vk_id}", f"pollstate:{vk_id}")
     await _r().set(_state_key(vk_id), json.dumps(state, ensure_ascii=False), ex=STATE_TTL)
 
@@ -102,7 +102,7 @@ async def _guard_ban(user_id: str, vk, peer_id: int) -> bool:
 
 async def _best_helper(topic: str, exclude: str, school_id: str) -> str | None:
     """Кандидат по теме: не сам, не в бане, vk привязан; минимум активных пар.
-    ponytail: N+1 по кандидатам (пользователь + баны + пары на каждого) —
+    ponytail: N+1 по кандидатам (пользователь + баны + пары на каждого) -
     при школьных объёмах (десятки тем/кандидатов) норм; если станет больно,
     агрегировать пары одним запросом и кэшировать баны."""
     best, best_n = None, None
@@ -136,7 +136,7 @@ async def _create_pair(topic: str, request: HelpRequest, helper_id: str, vk) -> 
     await request.save()
     helper = await users_service.by_id(helper_id)
     seeker = await users_service.by_id(request.user_id)
-    hint = "\nПиши сюда обычными сообщениями — пересллю напарнику. Код чата: %s" % pair.chat_key
+    hint = "\nПиши сюда обычными сообщениями - пересллю напарнику. Код чата: %s" % pair.chat_key
     if helper and helper.vk_id:
         await _send(vk, helper.vk_id,
                     f"Новая пара по теме «{topic}»: {seeker.full_name if seeker else 'ученик'}.{hint}")
@@ -205,7 +205,7 @@ async def start_report(event, vk):
         return
     other = pair.seeker_id if str(pair.helper_id) == str(u.id) else pair.helper_id
     await _set_state(vk_id, {"flow": "report", "reporter": str(u.id), "reported": other})
-    await _send(vk, peer, "Опиши проблему одним сообщением — жалоба уйдёт модераторам.")
+    await _send(vk, peer, "Опиши проблему одним сообщением - жалоба уйдёт модераторам.")
 
 
 async def finish_pair(event, vk):
@@ -251,7 +251,7 @@ async def _on_confirm(payload: dict, state: dict, event, vk):
     await _send(vk, peer, f"Готово! Ты в списке помощников по теме «{topic}».")
     n = await try_match(topic, vk, school_id=u.school_id)
     if n:
-        await _send(vk, peer, f"Сразу подобрал ожидающие заявки: создано пар — {n}.")
+        await _send(vk, peer, f"Сразу подобрал ожидающие заявки: создано пар - {n}.")
 
 
 async def _on_rate(payload: dict, state: dict, event, vk):
@@ -316,7 +316,7 @@ async def _forward_if_paired(event, vk):
                             sender_id=str(u.id), text=text).insert()
     hit = await bridge_service.text_hit(text, school_id=u.school_id)
     if hit:
-        # авто-репорт: не доставляем, автор — нарушитель
+        # авто-репорт: не доставляем, автор - нарушитель
         await Report(school_id=u.school_id, reporter_id="system", reported_user_id=str(u.id),
                      message_id=str(msg.id), reason=f"авто: стоп-слово «{hit}»").insert()
         await _send(vk, peer, STOP_HIT)
@@ -335,7 +335,7 @@ async def handle_message(event, vk):
     vk_id = event["vk_user_id"]
     r = _r()
     if await r.exists(f"pollstate:{vk_id}"):
-        return  # активен сценарий опроса — не мешаем
+        return  # активен сценарий опроса - не мешаем
     state_raw = await r.get(_state_key(vk_id))
     payload = _parse_payload(event.get("payload"))
     if payload:

@@ -42,7 +42,7 @@ async def by_vk(vk_id: int) -> User | None:
 
 
 async def by_id(user_id: str) -> User | None:
-    """id приходит из JWT (sub) или из Redis — может быть любым мусором, не кидаем исключение."""
+    """id приходит из JWT (sub) или из Redis - может быть любым мусором, не кидаем исключение."""
     try:
         oid = ObjectId(user_id)
     except Exception:

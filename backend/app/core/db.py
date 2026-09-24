@@ -22,7 +22,7 @@ def get_motor_client() -> AsyncIOMotorClient:
 def get_gridfs() -> AsyncIOMotorGridFSBucket:
     """GridFS-бакет на дефолтной базе из MONGO_URL.
 
-    ponytail: без инъекции клиента — в тестах GridFS не эмулируется,
+    ponytail: без инъекции клиента - в тестах GridFS не эмулируется,
     цикл загрузки/отдачи проверяем интеграционно (тест помечен skip).
     """
     return AsyncIOMotorGridFSBucket(get_motor_client().get_default_database())
@@ -31,7 +31,7 @@ def get_gridfs() -> AsyncIOMotorGridFSBucket:
 async def init_mongo() -> None:
     """Подключение к Mongo + инициализация Beanie. Вызывать на старте (api, бот, тесты).
 
-    Если Mongo ещё не готова (соседний контейнер стартует) — ждём, а не падаем.
+    Если Mongo ещё не готова (соседний контейнер стартует) - ждём, а не падаем.
     """
     from ..modules.pulse.models import Poll, PollAnswer  # noqa: PLC0415
     from ..modules.bridge.models import (Ban, HelpRequest, HelperTopic,  # noqa: PLC0415
@@ -40,7 +40,7 @@ async def init_mongo() -> None:
     from ..modules.navigator.models import Building, Floor, Room  # noqa: PLC0415
     from ..modules.builder.models import Quest, QuestRun  # noqa: PLC0415
     from ..modules.media.models import Post, PostIdea  # noqa: PLC0415
-    from ..modules.users.models import School, SchoolClass, User  # noqa: PLC0415 — циклический импорт на уровне модуля
+    from ..modules.users.models import School, SchoolClass, User  # noqa: PLC0415 - циклический импорт на уровне модуля
 
     client = get_motor_client()
     for attempt in range(1, 31):  # ~2.5 мин максимум

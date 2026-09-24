@@ -6,8 +6,7 @@ import httpx
 from ..core.config import settings
 from .client import VKClient
 
-# wait=25 — сервер сам держит соединение до 25с, общий клиент с timeout=10
-# рвал запрос и давал reconnect-шторм
+# wait=25 - сервер сам держит соединение до 25с, общий клиент с timeout=10 рвал запрос и давал reconnect-шторм
 LP_TIMEOUT = httpx.Timeout(30, read=35)
 
 
@@ -45,7 +44,7 @@ async def run_forever(client: VKClient, dp):
                                     "text": msg["text"],
                                     "vk_user_id": msg["from_id"],
                                     "peer_id": msg["peer_id"],
-                                    # VK присылает payload строкой JSON — кнопки клавиатуры
+                                    # VK присылает payload строкой JSON - кнопки клавиатуры
                                     "payload": msg.get("payload"),
                                     "vk": client,
                                 }

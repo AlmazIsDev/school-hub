@@ -213,7 +213,7 @@ async def test_room_requires_admin(client, db):
 # ---------- plans (GridFS) ----------
 
 # mongomock GridFS не поддерживает: цикл загрузка/отдача проверяем интеграционно
-@pytest.mark.skip(reason="GridFS не эмулируется mongomock — нужен реальный mongo")
+@pytest.mark.skip(reason="GridFS не эмулируется mongomock - нужен реальный mongo")
 async def test_plan_upload_download_roundtrip(client, tokens, floor):
     hdr = _h(tokens["admin"])
     r = await client.post(f"/api/nav/floors/{floor}/plan",

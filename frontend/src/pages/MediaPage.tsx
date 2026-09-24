@@ -41,13 +41,13 @@ const MONTHS = [
   "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
 ];
 
-/** date-инпут даёт "YYYY-MM-DD" — бэкодному datetime его хватает. */
+/** date-инпут даёт "YYYY-MM-DD" - бэкодному datetime его хватает. */
 function toDateInput(iso: string | null): string {
   return iso ? iso.slice(0, 10) : "";
 }
 
 // Мини-markdown без зависимости: **жирный**, *курсив*, `код`, [текст](url).
-// Сначала экранируем HTML, потом вставляем разметку — XSS-безопасно.
+// Сначала экранируем HTML, потом вставляем разметку - XSS-безопасно.
 function renderMarkdown(src: string): string {
   const esc = src
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -190,7 +190,7 @@ export default function MediaPage() {
 
   const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
 
-  // сетка месяца: понедельник — первый день
+  // сетка месяца: понедельник - первый день
   const calendarCells = useMemo(() => {
     const first = new Date(month.y, month.m, 1);
     const daysInMonth = new Date(month.y, month.m + 1, 0).getDate();

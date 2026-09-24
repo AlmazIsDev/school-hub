@@ -30,7 +30,7 @@ async def handle_where(event, vk):
         floor = await Floor.get(room.floor_id)
         building = await Building.get(floor.building_id) if floor else None
         where = f"{building.name}, {floor.level} этаж" if building and floor else "место не указано"
-        lines.append(f"{room.number} «{room.name}» — {where}")
+        lines.append(f"{room.number} «{room.name}» - {where}")
     text = "\n".join(lines)
     if len(rooms) > MAX_MATCHES:
         text += f"\n…и ещё {len(rooms) - MAX_MATCHES}, уточни номер."

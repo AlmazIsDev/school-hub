@@ -1,4 +1,4 @@
-"""CRUD школ — только superadmin. Школьный админ создаётся вместе со школой."""
+"""CRUD школ - только superadmin. Школьный админ создаётся вместе со школой."""
 import secrets
 
 from bson import ObjectId

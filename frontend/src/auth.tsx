@@ -26,7 +26,7 @@ function readUser(): { id: string; role: string } | null {
   if (!t) return null;
   try {
     const p = tokenPayload(t.access);
-    return { id: p.sub, role: p.role };  // sub — строковый ObjectId
+    return { id: p.sub, role: p.role };  // sub - строковый ObjectId
   } catch {
     setTokens(null);
     return null;

@@ -179,7 +179,7 @@ async def test_helpers_rating(client, db):
                     chat_key="k1", status="closed", helper_score=5).insert()
     await TutorPair(school_id=await ensure_school(), request_id=None, helper_id=helper_id, seeker_id="s" * 24,
                     chat_key="k2", status="closed", helper_score=3).insert()
-    # активная пара и пара без оценки не считаются в среднее, но закрытая без оценки — в pairs
+    # активная пара и пара без оценки не считаются в среднее, но закрытая без оценки - в pairs
     await TutorPair(school_id=await ensure_school(), request_id=None, helper_id=helper_id, seeker_id="s" * 24,
                     chat_key="k3", status="active").insert()
     await TutorPair(school_id=await ensure_school(), request_id=None, helper_id=helper_id, seeker_id="s" * 24,

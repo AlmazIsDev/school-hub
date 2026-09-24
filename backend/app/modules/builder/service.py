@@ -1,4 +1,4 @@
-"""Механика прохождения квеста — общая для бота и веб-плеера."""
+"""Механика прохождения квеста - общая для бота и веб-плеера."""
 from bson import ObjectId
 from fastapi import HTTPException
 
@@ -40,7 +40,7 @@ async def check_class_access(quest: Quest, user: dict) -> None:
 
 
 def expected_block_id(quest: Quest, trace: list[dict]) -> str | None:
-    """Блок, на котором прохождение должно стоять по trace. None — trace битый."""
+    """Блок, на котором прохождение должно стоять по trace. None - trace битый."""
     blocks = blocks_map(quest)
     bid = resolve_next(blocks, quest.structure["blocks"][0]["id"], None)
     for step in trace:

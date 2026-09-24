@@ -55,7 +55,7 @@ async def vk():
 async def test_found_by_number(db, school):
     vk = FakeVK()
     await navigator_bot.handle_where(_event("где 205"), vk)
-    assert "205 «Информатика» — Основное, 2 этаж" in vk.messages[0]
+    assert "205 «Информатика» - Основное, 2 этаж" in vk.messages[0]
 
 
 async def test_found_by_name(db, school):

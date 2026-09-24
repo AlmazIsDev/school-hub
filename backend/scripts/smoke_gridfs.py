@@ -76,7 +76,7 @@ async def main() -> int:
         plan2 = r.json()["plan_id"]
         try:
             await grid.delete(__import__("bson").ObjectId(plan1))
-            exists = True  # delete не упал — файл ещё был, значит не снесли
+            exists = True  # delete не упал - файл ещё был, значит не снесли
             await grid.delete(__import__("bson").ObjectId(plan1))  # вернём состояние
         except Exception:
             exists = False

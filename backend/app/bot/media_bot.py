@@ -10,7 +10,7 @@ from .pulse_bot import _send
 log = logging.getLogger("bot")
 
 IDEA_MAX = 1000
-EDITORS_LIMIT = 10  # первые 10 редакторов с vk_id — чтобы не спамить при большом штате
+EDITORS_LIMIT = 10  # первые 10 редакторов с vk_id - чтобы не спамить при большом штате
 BODY_PREVIEW = 400
 
 NOT_BOUND = "Привяжи аккаунт на сайте, чтобы предлагать идеи."
@@ -64,7 +64,7 @@ async def on_published(payload: dict, vk):
         User.school_id == post.school_id,
         User.role == "student", User.vk_id != None  # noqa: E711
     ).to_list()
-    message = f"Новая публикация: {post.title}\n{post.body[:BODY_PREVIEW]}\n\nПолностью — на сайте."
+    message = f"Новая публикация: {post.title}\n{post.body[:BODY_PREVIEW]}\n\nПолностью - на сайте."
     for u in students:
         try:
             await _send(vk, u.vk_id, message)

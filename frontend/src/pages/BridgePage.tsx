@@ -152,7 +152,7 @@ export default function BridgePage() {
                   <Table.Td>{r.reporter_full_name}</Table.Td>
                   <Table.Td>{r.reported_full_name}</Table.Td>
                   <Table.Td>{r.reason}</Table.Td>
-                  <Table.Td>{r.message_text ?? "—"}</Table.Td>
+                  <Table.Td>{r.message_text ?? "-"}</Table.Td>
                   <Table.Td>{new Date(r.created_at).toLocaleDateString("ru-RU")}</Table.Td>
                   <Table.Td>
                     <Group gap="xs">
@@ -223,9 +223,9 @@ export default function BridgePage() {
               {helpers.map((h) => (
                 <Table.Tr key={h.user_id}>
                   <Table.Td>{h.full_name}</Table.Td>
-                  <Table.Td>{h.topics.join(", ") || "—"}</Table.Td>
+                  <Table.Td>{h.topics.join(", ") || "-"}</Table.Td>
                   <Table.Td>{h.pairs}</Table.Td>
-                  <Table.Td>{h.avg_score ?? "—"}</Table.Td>
+                  <Table.Td>{h.avg_score ?? "-"}</Table.Td>
                 </Table.Tr>
               ))}
               {helpers.length === 0 && (

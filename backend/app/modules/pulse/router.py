@@ -124,8 +124,7 @@ async def poll_results(poll_id: str, user: dict = Depends(require_role("teacher"
     answers = await PollAnswer.find(PollAnswer.poll_id == poll_id,
                                     PollAnswer.school_id == user["school_id"]).to_list()
 
-    # Анонимные ответы — связать их между собой нельзя, поэтому completed/started
-    # считаем как число ответов на последний / первый вопрос соответственно
+    # Анонимные ответы - связать их между собой нельзя, поэтому completed/started считаем как число ответов на последний / первый вопрос соответственно
     # (нижняя граница: ученик, дошедший до последнего вопроса, мог пропустить первый).
     last_idx = len(poll.questions) - 1
     started = sum(1 for a in answers if a.question_idx == 0)
@@ -153,7 +152,7 @@ async def poll_results(poll_id: str, user: dict = Depends(require_role("teacher"
 
 @router.get("/polls/{poll_id}/results.csv")
 async def poll_results_csv(poll_id: str, user: dict = Depends(require_role("teacher", "admin"))):
-    """CSV для Excel: ; и BOM, ответы анонимны — агрегаты по вопросам."""
+    """CSV для Excel: ; и BOM, ответы анонимны - агрегаты по вопросам."""
     poll = await get_poll(poll_id, user)
     if not _can_manage(poll, user):
         raise HTTPException(403, "Не ваш опрос")
@@ -186,8 +185,7 @@ async def poll_results_csv(poll_id: str, user: dict = Depends(require_role("teac
 async def weak_topics(threshold: float = 3.5, user: dict = Depends(require_role("teacher", "admin"))):
     if not (0 < threshold <= 5):
         raise HTTPException(422, "threshold должен быть в (0, 5]")
-    # Только closed: средняя по активному опросу вводит в заблуждение —
-    # ответили ещё не все, да и учитель не «отработал» результат.
+    # Только closed: средняя по активному опросу вводит в заблуждение - ответили ещё не все, да и учитель не «отработал» результат.
     query = {"status": "closed", "school_id": user.get("school_id")}
     if user["role"] != "admin":
         query["teacher_id"] = user["id"]

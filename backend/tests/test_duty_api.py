@@ -86,7 +86,7 @@ async def test_schedule_validation(client, tokens):
     student = await User.find_one(User.role == "student")
     sid = str(student.id)
 
-    # weekday вне 1..7 — проверяется именно валидация диапазона, id валидный
+    # weekday вне 1..7 - проверяется именно валидация диапазона, id валидный
     r = await client.post("/api/duty/schedules", headers=teacher_h, json={
         "zone_id": zone_id, "week_pattern": [{"weekday": 8, "slot": 1, "user_id": sid}]})
     assert r.status_code == 422
@@ -199,7 +199,7 @@ async def test_completions(client, tokens):
     r = await client.post("/api/duty/completions", headers=_h(tokens["student"]), json={
         "schedule_id": sched_id, "weekday": 1, "slot": 2, "date": "2026-09-14"})
     assert r.status_code == 409
-    # другая дата — не дубль
+    # другая дата - не дубль
     r = await client.post("/api/duty/completions", headers=_h(tokens["student"]), json={
         "schedule_id": sched_id, "weekday": 1, "slot": 2, "date": "2026-09-21"})
     assert r.status_code == 200
@@ -208,7 +208,7 @@ async def test_completions(client, tokens):
     r = await client.post("/api/duty/completions", headers=_h(tokens["teacher"]), json={
         "schedule_id": sched_id, "weekday": 1, "slot": 2, "date": "2026-09-28", "user_id": s1})
     assert r.status_code == 200
-    # учитель отмечает за себя — слота нет
+    # учитель отмечает за себя - слота нет
     r = await client.post("/api/duty/completions", headers=_h(tokens["teacher"]), json={
         "schedule_id": sched_id, "weekday": 1, "slot": 2, "date": "2026-09-28"})
     assert r.status_code == 404
@@ -224,7 +224,7 @@ async def test_completions(client, tokens):
     other_student = str(students[1].id)
     r = await client.get("/api/duty/completions", params={"user_id": other_student}, headers=_h(tokens["student"]))
     assert r.status_code == 403
-    # учитель — любых, с фильтром по датам
+    # учитель - любых, с фильтром по датам
     r = await client.get("/api/duty/completions", params={"user_id": s1, "from": "2026-09-20", "to": "2026-09-25"},
                          headers=_h(tokens["teacher"]))
     assert r.status_code == 200 and len(r.json()) == 1
@@ -254,8 +254,7 @@ async def test_duty_stats(client, tokens):
 
     r = await client.get("/api/duty/stats", headers=_h(tokens["student"]))
     assert r.status_code == 200
-    # прошедшие понедельники с момента создания графика: отмеченный — done,
-    # остальные — missed; сегодняшний день не считаем
+    # прошедшие понедельники с момента создания графика: отмеченный - done, остальные - missed; сегодняшний день не считаем
     mondays = []
     d = today - timedelta(days=14)
     while d <= today:

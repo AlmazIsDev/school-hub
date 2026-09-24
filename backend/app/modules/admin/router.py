@@ -1,6 +1,6 @@
 """Прямое управление БД для админа: просмотр/правка/создание/удаление документов.
 
-Формат обмена — MongoDB Extended JSON (json_util): _id и даты ходят как
+Формат обмена - MongoDB Extended JSON (json_util): _id и даты ходят как
 {"$oid": ...} / {"$date": ...} и обратно парсятся тем же json_util. Системные
 коллекции (system.*, fs.*) закрыты.
 """
@@ -41,8 +41,8 @@ def _oid(doc_id: str) -> ObjectId:
 
 
 async def _search_query(col, q: str) -> dict:
-    """«поле: значение» — точный матч поля (значение парсится как Extended JSON);
-    иначе — case-insensitive regex по строковым полям (берём из образца документа)."""
+    """«поле: значение» - точный матч поля (значение парсится как Extended JSON);
+    иначе - case-insensitive regex по строковым полям (берём из образца документа)."""
     q = (q or "").strip()
     if not q:
         return {}
@@ -76,7 +76,7 @@ async def list_docs(name: str,
                     user: dict = Depends(require_role("admin"))):
     col = await _collection(name)
     flt = await _search_query(col, q)
-    total = await col.count_documents({})  # total без поиска — как в TradeVerse
+    total = await col.count_documents({})  # total без поиска - как в TradeVerse
     cursor = col.find(flt).skip(skip).limit(limit)
     if sort:
         cursor = cursor.sort([(sort, order)])
@@ -86,7 +86,7 @@ async def list_docs(name: str,
 
 @router.post("/{name}")
 async def create_doc(name: str, body: dict, user: dict = Depends(require_role("admin"))):
-    # коллекция может не существовать — insert её лениво создаст
+    # коллекция может не существовать - insert её лениво создаст
     col = _collection_unchecked(name)
     try:
         result = await col.insert_one(json_util.loads(json.dumps(body)))

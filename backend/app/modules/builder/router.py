@@ -63,7 +63,7 @@ async def list_quests(user: dict = Depends(require_role("teacher", "admin"))):
 
 @router.get("/quests/published")
 async def list_published(user: dict = Depends(get_current_user)):
-    """Список доступных квестов: ученику — его класс, сотрудники — вся школа."""
+    """Список доступных квестов: ученику - его класс, сотрудники - вся школа."""
     flt: dict = {"status": "published", "school_id": _school(user)}
     if user["role"] == "student":
         me = await User.get(ObjectId(user["id"]))
@@ -124,7 +124,7 @@ async def play_quest(quest_id: str, user: dict = Depends(get_current_user)):
     q = await _get_quest(quest_id, user)
     if q.status != "published":
         raise HTTPException(409, "Квест не опубликован")
-    # teacher/admin могут смотреть published чужих квестов — превью без класса
+    # teacher/admin могут смотреть published чужих квестов - превью без класса
     await service.check_class_access(q, user)
     return {"id": str(q.id), "title": q.title, "blocks": service.sanitized_blocks(q)}
 
@@ -219,7 +219,7 @@ async def quest_stats(quest_id: str, user: dict = Depends(require_role("teacher"
     scores = [r.score for r in runs if r.finished]
     durations = [ (r.finished_at - r.started_at).total_seconds()
                   for r in runs if r.finished and r.finished_at ]
-    # стартовый блок засчитан всем, дальше — по факту попадания в trace
+    # стартовый блок засчитан всем, дальше - по факту попадания в trace
     trace_ids = [set(step.get("block_id") for step in r.trace) for r in runs]
     funnel = []
     for b in q.structure["blocks"]:

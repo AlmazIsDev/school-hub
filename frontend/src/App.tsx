@@ -25,7 +25,7 @@ function Guard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Роут «/» пока один — по мере появления модулей добавим редирект по роли. */
+/** Роут «/» пока один - по мере появления модулей добавим редирект по роли. */
 function Home() {
   return <Navigate to="/profile" replace />;
 }

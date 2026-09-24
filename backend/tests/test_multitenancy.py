@@ -79,7 +79,7 @@ async def test_superadmin_login_without_school_code(client, db):
 
 
 async def test_superadmin_school_context_header(client, db):
-    """X-School-Id переключает контекст superadmin'а: без него — общая база, с ним — школа."""
+    """X-School-Id переключает контекст superadmin'а: без него - общая база, с ним - школа."""
     from app.modules.users.models import User
     from app.modules.users.service import create_user
     from app.core.auth import make_tokens, hash_password
@@ -90,10 +90,10 @@ async def test_superadmin_school_context_header(client, db):
     r = await client.post("/api/auth/login",
                           json={"school_code": "", "login": "root", "password": "pw123456"})
     h = {"Authorization": f"Bearer {r.json()['access']}"}
-    # без заголовка — все пользователи всех школ
+    # без заголовка - все пользователи всех школ
     r = await client.get("/api/users", headers=h)
     assert any(u["login"] == "a1" for u in r.json())
-    # с заголовком — только выбранная школа
+    # с заголовком - только выбранная школа
     r = await client.get("/api/users", headers={**h, "X-School-Id": sid_a})
     assert [u["login"] for u in r.json()] == ["a1"]
 

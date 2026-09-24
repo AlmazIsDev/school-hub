@@ -17,7 +17,7 @@ _subscribers: dict[str, list] = {}
 
 
 def subscribe(event_type: str, handler):
-    """handler(payload: dict, vk) — регистрируется в app.bot.__main__."""
+    """handler(payload: dict, vk) - регистрируется в app.bot.__main__."""
     _subscribers.setdefault(event_type, []).append(handler)
 
 
@@ -26,8 +26,7 @@ async def publish(type_: str, **data):
         await core_redis.get_redis().publish(
             CHANNEL, json.dumps({"type": type_, **data}, ensure_ascii=False))
     except Exception:
-        # падение pub/sub не должно ломать основную операцию —
-        # подписчик потеряет событие, догонялка доставит
+        # падение pub/sub не должно ломать основную операцию - подписчик потеряет событие, догонялка доставит
         log.warning("%s не опубликован: %s", type_, data)
 
 

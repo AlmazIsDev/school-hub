@@ -52,7 +52,7 @@ async def create_post(body: schemas.PostIn, user: dict = Depends(require_role("t
 
 @router.get("/posts")
 async def list_posts(status: str | None = None, user: dict = Depends(get_current_user)):
-    # ученикам доступна только опубликованная лента, редакция — весь канбан
+    # ученикам доступна только опубликованная лента, редакция - весь канбан
     if user["role"] not in ("teacher", "admin"):
         return [_post_out(p) for p in await Post.find(
             Post.school_id == _school(user), Post.status == "published").to_list()]
@@ -113,8 +113,7 @@ async def list_ideas(status: str | None = None,
 
 
 async def _claim_idea(idea_id: str, new_status: str, user: dict) -> PostIdea:
-    # атомарно забираем идею: условие status=new в фильтре самого update,
-    # параллельный клик получит matched_count=0 и 409 вместо второго поста
+    # атомарно забираем идею: условие status=new в фильтре самого update, параллельный клик получит matched_count=0 и 409 вместо второго поста
     res = await PostIdea.find_one(
         PostIdea.id == _oid(idea_id), PostIdea.school_id == _school(user),
         PostIdea.status == "new"
