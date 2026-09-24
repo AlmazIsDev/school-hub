@@ -264,9 +264,9 @@ export default function MapView({
         : (editGeom ?? editedRoom?.geometry.coordinates[0] ?? []);
       const pts = ring.map((p) => [...p] as Pt);
       const [sx, sy] = snap(x, y);
+      // замкнутость проверяем до правки: после pts[0]=... первый и последний уже разные
+      const closedRing = ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1];
       pts[drag.i] = [sx, sy];
-      // замыкающая тянется с первой, но только у замкнутого контура
-      const closedRing = pts.length > 1 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1];
       if (drag.i === 0 && closedRing) pts[pts.length - 1] = [sx, sy];
       if (drag.kind === "draft-vertex") setDraftGeom(pts); else setEditGeom(pts);
     }
@@ -400,11 +400,15 @@ export default function MapView({
             key={`m${i}`}
             cx={(x + nx) / 2} cy={(y + ny) / 2} r={marker / 2.5}
             fill="#fff" stroke="#f08c00" strokeWidth={2} vectorEffect="non-scaling-stroke"
-            style={{ cursor: "copy" }}
-            onClick={(e) => {
+            style={{ cursor: "move" }}
+            onPointerDown={(e) => {
+              // вставляем вершину в ребро и сразу тянем; без stopPropagation svg начнёт пан
               e.stopPropagation();
-              const next = editedRing.flatMap((p, k) => (k === i ? [p, [Math.round((x + nx) / 2 / GRID) * GRID, Math.round((y + ny) / 2 / GRID) * GRID] as Pt] : [p]));
+              const next = (editedRing as Pt[]).flatMap((p, k) =>
+                k === i ? [p, [Math.round((x + nx) / 2 / GRID) * GRID, Math.round((y + ny) / 2 / GRID) * GRID] as Pt] : [p]);
               cbRef.current.onGeometryChange?.(editedRoom.id, { type: "Polygon", coordinates: [next] });
+              dragRef.current = { kind: "vertex", i: i + 1 };
+              svgRef.current?.setPointerCapture(e.pointerId);
             }}
           />
         );

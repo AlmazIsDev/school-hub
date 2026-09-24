@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Button, Card, Group, Modal, NativeSelect, NumberInput, Stack, Table, Tabs, Text, TextInput, Title,
+  Button, Card, Group, Modal, NativeSelect, NumberInput, SegmentedControl, Stack, Table, Tabs, Text, TextInput, Title,
 } from "@mantine/core";
 import { apiBlob, apiFetch } from "../api";
 import { useSearchParams } from "react-router-dom";
@@ -433,18 +433,22 @@ function FloorsEditor({ buildingId, act, busy }: { buildingId: string; act: Act;
   );
 }
 
+type EditorMode = "view" | "draw" | "rect" | "delete" | "room" | "geom";
+
 function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: Act; busy: boolean; refreshFloors: () => Promise<void> }) {
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [drawing, setDrawing] = useState(false);
-  const [rectMode, setRectMode] = useState(false);
+  // один активный режим вместо пяти независимых флагов
+  const [mode, setMode] = useState<EditorMode>("view");
   const [rectStart, setRectStart] = useState<[number, number] | null>(null);
   const [rectHover, setRectHover] = useState<[number, number] | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [geometryMode, setGeometryMode] = useState(false);
   const [geometryRoomId, setGeometryRoomId] = useState<string | null>(null);
   const [geometryDirty, setGeometryDirty] = useState(false);
-  const [editingRoomMode, setEditingRoomMode] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const drawing = mode === "draw" || mode === "rect";
+  const rectMode = mode === "rect";
+  const deleting = mode === "delete";
+  const editingRoomMode = mode === "room";
+  const geometryMode = mode === "geom";
   const [draft, setDraft] = useState<[number, number][]>([]);
   const [roomNumber, setRoomNumber] = useState("");
   const [roomName, setRoomName] = useState("");
@@ -491,6 +495,12 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
       // plan_id после загрузки новый - обновляем список этажей, FloorEditor перезапустится по key
       await refreshFloors();
     }
+  }
+
+  function switchMode(m: EditorMode) {
+    setMode(m);
+    setDraft([]); setFinishOpen(false); setRectStart(null);
+    if (m !== "geom") { setGeometryRoomId(null); setGeometryDirty(false); }
   }
 
   function onMapClick(point: [number, number]) {
@@ -544,7 +554,7 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
       }),
       "Не удалось сохранить комнату",
     )) {
-      setDraft([]); setRoomNumber(""); setRoomName(""); setFinishOpen(false); setDrawing(false); setRectMode(false);
+      setDraft([]); setRoomNumber(""); setRoomName(""); setFinishOpen(false); setMode("view");
       await refresh();
     }
   }
@@ -552,32 +562,26 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
   return (
     <Card withBorder>
       <Group gap="sm" mb="md">
-        <Button variant={drawing && !rectMode ? "filled" : "light"} onClick={() => { setDrawing(!drawing || rectMode); setRectMode(false); setRectStart(null); setDeleting(false); setDraft([]); setFinishOpen(false); }}>
-          {drawing && !rectMode ? "Режим рисования: вкл" : "Добавить комнату"}
-        </Button>
-        <Button variant={drawing && rectMode ? "filled" : "light"} onClick={() => { const on = !(drawing && rectMode); setDrawing(on); setRectMode(on); setRectStart(null); setDeleting(false); setDraft([]); setFinishOpen(false); }}>
-          {drawing && rectMode ? "Прямоугольник: вкл" : "Добавить прямоугольник"}
-        </Button>
-        <Button variant={deleting ? "filled" : "light"} color="red" onClick={() => { setDeleting(!deleting); setDrawing(false); setRectMode(false); setEditingRoomMode(false); setDraft([]); }}>
-          {deleting ? "Режим удаления: вкл" : "Удалять комнаты кликом"}
-        </Button>
-        <Button variant={editingRoomMode ? "filled" : "light"} onClick={() => { setEditingRoomMode(!editingRoomMode); setDrawing(false); setRectMode(false); setDeleting(false); setGeometryMode(false); setDraft([]); }}>
-          {editingRoomMode ? "Режим правки: вкл" : "Править комнаты кликом"}
-        </Button>
-        <Button variant={geometryMode ? "filled" : "light"} onClick={() => { setGeometryMode(!geometryMode); setDrawing(false); setRectMode(false); setDeleting(false); setEditingRoomMode(false); setDraft([]); setGeometryRoomId(null); setGeometryDirty(false); }}>
-          {geometryMode ? "Режим геометрии: вкл" : "Двигать/править форму"}
-        </Button>
-        <Button component="label" variant="light">
+        <SegmentedControl
+          value={mode}
+          onChange={(v) => switchMode(v as EditorMode)}
+          aria-label="Режим редактора"
+          data={[
+            { value: "view", label: "Просмотр" },
+            { value: "draw", label: "Рисовать" },
+            { value: "rect", label: "Прямоугольник" },
+            { value: "delete", label: "Удалять" },
+            { value: "room", label: "Кабинет" },
+            { value: "geom", label: "Форма" },
+          ]}
+        />
+        <Button component="label" variant="default">
           {floor.plan_id ? "Заменить план" : "Загрузить план"}
           <input type="file" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg" hidden onChange={uploadPlan} />
         </Button>
-        {drawing && (
-          <>
-            <Text size="sm">Точек: {draft.length}</Text>
-            <Button disabled={draft.length < 3 || finishOpen} onClick={() => { setRectStart(null); setFinishOpen(true); }}>Завершить</Button>
-            <Button variant="subtle" color="red" onClick={() => { setDraft([]); setRectStart(null); }}>Отмена</Button>
-          </>
-        )}
+        {drawing && <Text size="sm">Точек: {draft.length}</Text>}
+        {drawing && <Button disabled={draft.length < 3 || finishOpen} onClick={() => { setRectStart(null); setFinishOpen(true); }}>Завершить</Button>}
+        {drawing && <Button variant="subtle" color="red" onClick={() => { setDraft([]); setRectStart(null); }}>Сбросить точки</Button>}
       </Group>
 
       {error && <div role="alert">{error}</div>}
@@ -613,16 +617,23 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
           </Stack>
         </form>
       </Modal>
-      {drawing && !finishOpen && (
+      {mode === "draw" && (
         <Text size="sm" c="dimmed" mt="xs">
-          {rectMode
-            ? rectStart ? "Второй клик - противоположный угол прямоугольника." : "Первый клик - угол прямоугольника."
-            : "Кликай по карте, чтобы ставить вершины. Тяни вершины и контур, ПКМ или Backspace - убрать последнюю точку."}
+          Клик по карте ставит вершину, ПКМ или Backspace убирает последнюю. Контур и вершины можно тянуть сразу.
+        </Text>
+      )}
+      {mode === "rect" && (
+        <Text size="sm" c="dimmed" mt="xs">Первый клик - угол прямоугольника, второй - противоположный.</Text>
+      )}
+      {mode === "delete" && <Text size="sm" c="dimmed" mt="xs">Клик по кабинету удалит его.</Text>}
+      {mode === "room" && <Text size="sm" c="dimmed" mt="xs">Клик по кабинету откроет номер и название.</Text>}
+      {mode === "geom" && !geometryRoomId && (
+        <Text size="sm" c="dimmed" mt="xs">
+          Клик по кабинету, затем тяни контур или вершины; кружок на ребре добавляет вершину. Не забудь «Сохранить геометрию».
         </Text>
       )}
 
-      {geometryMode && (
-        geometryRoomId ? (
+      {geometryMode && geometryRoomId && (
           <Group gap="sm" mt="xs">
             <Button
               disabled={!geometryDirty}
@@ -651,11 +662,6 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
               Отменить правки
             </Button>
           </Group>
-        ) : (
-          <Text size="sm" c="dimmed" mt="xs">
-            Кликни по комнате, затем тяни её целиком или за вершины. Изменения применяются после «Сохранить».
-          </Text>
-        )
       )}
 
       <Modal opened={editingRoom !== null} onClose={() => setEditingRoom(null)} title={`Кабинет ${editingRoom?.number ?? ""}`}>
