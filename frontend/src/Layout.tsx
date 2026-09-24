@@ -3,7 +3,7 @@ import { ActionIcon, AppShell, Burger, Button, Container, Group, NavLink, Select
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth";
-import { apiFetch, getActiveSchool, getImpersonator, setActiveSchool, setTokens, stopImpersonation } from "./api";
+import { apiFetch, getActiveSchool, getImpersonator, setActiveSchool, stopImpersonation } from "./api";
 
 type School = { id: string; name: string; code: string };
 
