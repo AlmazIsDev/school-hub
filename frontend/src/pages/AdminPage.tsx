@@ -3,7 +3,7 @@ import {
   Button, Card, Group, Modal, NativeSelect, NumberInput, Pagination, Stack, Table, Text,
   TextInput, Title, Textarea,
 } from "@mantine/core";
-import { apiFetch, startImpersonation, type Tokens } from "../api";
+import { apiFetch, getTokens, startImpersonation, type Tokens } from "../api";
 
 type SchoolClass = { id: string; grade: number; letter: string };
 type AppUser = {
@@ -140,8 +140,9 @@ export default function AdminPage() {
   const impersonate = (u: AppUser) => {
     if (!window.confirm(`Зайти как ${u.full_name} (${u.login})?`)) return;
     act(async () => {
-      const tokens = await apiFetch<Tokens>(`/users/${u.id}/impersonate`, { method: "POST" });
-      startImpersonation({ tokens, name: u.login });
+      const adminTokens = getTokens()!;
+      const res = await apiFetch<Tokens & { admin_login: string }>(`/users/${u.id}/impersonate`, { method: "POST" });
+      startImpersonation(res, { tokens: adminTokens, name: res.admin_login });
       window.location.href = "/";
     }, "Не удалось зайти как пользователь");
   };

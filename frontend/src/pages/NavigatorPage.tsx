@@ -225,6 +225,11 @@ function Editor({ buildings, reloadBuildings }: { buildings: Building[]; reloadB
     finally { setBusy(false); }
   }
 
+  // та же грабля, что в просмотре: селектор рисует первое здание, стейт пуст
+  useEffect(() => {
+    if (!buildingId && buildings.length > 0) setBuildingId(buildings[0].id);
+  }, [buildings, buildingId]);
+
   async function addBuilding(e: React.FormEvent) {
     e.preventDefault();
     if (await act(

@@ -30,6 +30,13 @@ function Home() {
   return <Navigate to="/profile" replace />;
 }
 
+/** Страница только для указанных ролей: остальные даже не видят ошибку API. */
+function RoleGuard({ roles, children }: { roles: string[]; children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user || !roles.includes(user.role)) return <Navigate to="/profile" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -44,8 +51,8 @@ export default function App() {
         <Route path="/navigator" element={<NavigatorPage />} />
         <Route path="/builder" element={<BuilderPage />} />
         <Route path="/quests" element={<QuestPlayPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/schools" element={<SchoolsPage />} />
+        <Route path="/admin" element={<RoleGuard roles={["admin", "superadmin"]}><AdminPage /></RoleGuard>} />
+        <Route path="/schools" element={<RoleGuard roles={["superadmin"]}><SchoolsPage /></RoleGuard>} />
         <Route path="/media" element={<MediaPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

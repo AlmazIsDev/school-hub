@@ -140,7 +140,8 @@ async def impersonate(user_id: str, user: dict = Depends(require_role("admin")))
     if str(u.id) == user["id"]:
         raise HTTPException(409, "Вы уже в своём аккаунте")
     # токен неотличим от обычного логина - сессия админа хранится на фронте
-    return make_tokens(u.id, u.role, u.school_id)
+    admin = await service.by_id(user["id"])
+    return {**make_tokens(u.id, u.role, u.school_id), "admin_login": admin.login}
 
 
 @router.delete("/users/{user_id}/vk")

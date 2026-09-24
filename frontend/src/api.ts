@@ -37,9 +37,10 @@ export function getImpersonator(): Impersonator | null {
   }
 }
 
-export function startImpersonation(v: Impersonator) {
-  localStorage.setItem("impersonator", JSON.stringify(v));
-  setTokens(v.tokens);
+/** Зайти как target: своп токенов, сессия админа сохраняется для «Вернуться». */
+export function startImpersonation(targetTokens: Tokens, impersonator: Impersonator) {
+  localStorage.setItem("impersonator", JSON.stringify(impersonator));
+  setTokens(targetTokens);
 }
 
 export function stopImpersonation() {

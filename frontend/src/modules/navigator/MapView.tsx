@@ -204,7 +204,7 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
       role="img"
       aria-label="План этажа"
     >
-      <style>{`.nv-room:hover { fill-opacity: 0.4; }`}</style>
+      <style>{`.nv-room { fill-opacity: 0.35; } .nv-room:hover { fill-opacity: 0.85; }`}</style>
       <defs>
         <pattern id="nv-grid" width={GRID} height={GRID} patternUnits="userSpaceOnUse">
           <path d={`M ${GRID} 0 L 0 0 0 ${GRID}`} fill="none" stroke="#e7e7e7" strokeWidth="1" />
@@ -231,14 +231,14 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
               points={pts}
               className="nv-room"
               fill={highlighted || isEdited ? "#f08c00" : "#1971c2"}
-              fillOpacity={highlighted ? 0.45 : undefined}
               stroke={highlighted || isEdited ? "#f08c00" : "#1971c2"}
               strokeWidth={2}
               vectorEffect="non-scaling-stroke"
-              style={{ cursor: onRoomClick ? "pointer" : (isEdited ? "move" : "default") }}
+              style={{ cursor: onRoomClick ? "pointer" : (isEdited ? "move" : "default"), ...(highlighted ? { fillOpacity: 0.55 } : {}) }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (panMovedRef.current) return;
+                // panMovedRef тут не проверяем: пан с capture заканчивается
+                // кликом на svg, до полигона он дойти не может
                 cbRef.current.onRoomClick?.(r);
               }}
               onPointerDown={isEdited ? onRoomBodyDown : undefined}
