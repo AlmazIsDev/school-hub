@@ -90,7 +90,9 @@ export default function MapView({
     | { kind: "draft-move"; startX: number; startY: number; orig: Pt[] }
     | { kind: "vertex"; i: number }
     | { kind: "draft-vertex"; i: number }
-    | { kind: "pan"; startX: number; startY: number; orig: View; moved: boolean }
+    // пан считаем в экранных пикселях: пересчёт курсора через текущий viewBox
+    // на каждом move даёт обратную связь и карту «тянет назад»
+    | { kind: "pan"; startClientX: number; startClientY: number; orig: View; moved: boolean }
     | null
   >(null);
   const cbRef = useRef({ onRoomClick, onMapClick, onGeometryChange, onDraftChange, onMouseMove });
@@ -185,8 +187,7 @@ export default function MapView({
     // На комнате пан не начинаем: клик дойдёт до полигона (режимы «кликом»).
     if ((e.target as Element).closest(".nv-room") || (e.target as Element).closest(".nv-draft")) return;
     panMovedRef.current = false;
-    const [x, y] = eventToPlan(e);
-    dragRef.current = { kind: "pan", startX: x, startY: y, orig: view, moved: false };
+    dragRef.current = { kind: "pan", startClientX: e.clientX, startClientY: e.clientY, orig: view, moved: false };
     svgRef.current?.setPointerCapture(e.pointerId);
   }
 
@@ -246,7 +247,8 @@ export default function MapView({
     const drag = dragRef.current;
     if (!drag) return;
     if (drag.kind === "pan") {
-      const dx = x - drag.startX, dy = y - drag.startY;
+      const k = drag.orig.w / svgRef.current!.clientWidth;
+      const dx = (e.clientX - drag.startClientX) * k, dy = (e.clientY - drag.startClientY) * k;
       if (Math.hypot(dx, dy) > 2) { drag.moved = true; panMovedRef.current = true; }
       setView({ ...drag.orig, x: drag.orig.x - dx, y: drag.orig.y - dy });
     } else if (drag.kind === "move" || drag.kind === "draft-move") {
@@ -336,9 +338,9 @@ export default function MapView({
             <polygon
               points={pts}
               className="nv-room"
-              fill={highlighted || isEdited ? "#f08c00" : "#1971c2"}
-              stroke={highlighted || isEdited ? "#f08c00" : "#1971c2"}
-              strokeWidth={selected ? 5 : 2}
+              fill={highlighted || selected || isEdited ? "#f08c00" : "#1971c2"}
+              stroke={highlighted || selected || isEdited ? "#f08c00" : "#1971c2"}
+              strokeWidth={selected || highlighted ? 4 : 2}
               vectorEffect="non-scaling-stroke"
               style={{ cursor: onRoomClick ? "pointer" : (isEdited ? "move" : "default"), ...(highlighted ? { fillOpacity: 0.55 } : {}) }}
               onClick={(e) => {

@@ -231,23 +231,25 @@ function Viewer({ buildings }: { buildings: Building[] }) {
                   onRoomClick={setSelectedRoom} />
               : <Text c="dimmed">План не загружен.</Text>}
           </div>
-          <Card withBorder w={240} mah={520} style={{ overflowY: "auto" }}>
-            <Title order={3} size="h4" mb="xs">Кабинеты этажа</Title>
-            {rooms.length === 0 && <Text c="dimmed">Пока нет.</Text>}
-            {rooms.map((r) => (
-              <Text key={r.id} component="a" c={r.id === highlightRoomId ? "orange" : "blue"}
-                style={{ cursor: "pointer" }}
-                onClick={() => { setSelectedRoom(r); setHighlightRoomId(r.id); }}>
-                {r.number} {r.name && <Text span c="dimmed" size="sm">- {r.name}</Text>}
-              </Text>
-            ))}
-          </Card>
-          {selectedRoom && (
-            <Card withBorder w={240}>
-              <Title order={3} size="h4">Кабинет {selectedRoom.number}</Title>
-              {selectedRoom.name && <Text>{selectedRoom.name}</Text>}
+          <Stack gap="md" w={240}>
+            <Card withBorder mah={480} style={{ overflowY: "auto" }}>
+              <Title order={3} size="h4" mb="xs">Кабинеты этажа</Title>
+              {rooms.length === 0 && <Text c="dimmed">Пока нет.</Text>}
+              {rooms.map((r) => (
+                <Text key={r.id} component="a" c={r.id === highlightRoomId || r.id === selectedRoom?.id ? "orange" : "blue"}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => { setSelectedRoom(r); setHighlightRoomId(r.id); }}>
+                  {r.number} {r.name && <Text span c="dimmed" size="sm">- {r.name}</Text>}
+                </Text>
+              ))}
             </Card>
-          )}
+            {selectedRoom && (
+              <Card withBorder>
+                <Title order={3} size="h4">Кабинет {selectedRoom.number}</Title>
+                {selectedRoom.name && <Text>{selectedRoom.name}</Text>}
+              </Card>
+            )}
+          </Stack>
         </Group>
       )}
     </Stack>
@@ -582,34 +584,35 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
       {planError && <div role="alert">{planError}</div>}
       {geometryDirty && <Text size="sm" fw={600} c="orange">Есть несохранённые правки геометрии.</Text>}
 
-      {finishOpen ? (
-        <Card withBorder component="form" onSubmit={saveRoom} mb="md" maw={420}>
-          <Group align="flex-end" gap="sm">
-            <TextInput flex={1} label="Номер кабинета" value={roomNumber}
+      <MapView
+        planUrl={planUrl}
+        rooms={rooms}
+        onRoomClick={onRoomClick}
+        onMapClick={onMapClick}
+        draft={drawing ? draft : undefined}
+        onDraftChange={(pts) => setDraft(pts as [number, number][])}
+        onMouseMove={(p) => { if (drawing && rectMode && rectStart) setRectHover([Math.round(p[0] / 10) * 10, Math.round(p[1] / 10) * 10]); }}
+        rectPreview={drawing && rectMode && rectStart && rectHover ? { a: rectStart, b: rectHover } : null}
+        editRoomId={geometryRoomId}
+        onGeometryChange={(roomId, geometry) => {
+          setRooms((rs) => rs.map((r) => (r.id === roomId ? { ...r, geometry } : r)));
+          setGeometryDirty(true);
+        }}
+      />
+      <Modal opened={finishOpen} onClose={() => setFinishOpen(false)} title="Новый кабинет">
+        <form onSubmit={saveRoom}>
+          <Stack gap="sm">
+            <TextInput label="Номер кабинета" value={roomNumber}
               onChange={(e) => setRoomNumber(e.currentTarget.value)} maxLength={32} required />
-            <TextInput flex={1} label="Название" value={roomName}
+            <TextInput label="Название" value={roomName}
               onChange={(e) => setRoomName(e.currentTarget.value)} maxLength={200} />
-            <Button type="submit" loading={busy}>Сохранить</Button>
-            <Button variant="subtle" onClick={() => setFinishOpen(false)}>Назад</Button>
-          </Group>
-        </Card>
-      ) : (
-        <MapView
-          planUrl={planUrl}
-          rooms={rooms}
-          onRoomClick={onRoomClick}
-          onMapClick={onMapClick}
-          draft={drawing ? draft : undefined}
-          onDraftChange={(pts) => setDraft(pts as [number, number][])}
-          onMouseMove={(p) => { if (drawing && rectMode && rectStart) setRectHover([Math.round(p[0] / 10) * 10, Math.round(p[1] / 10) * 10]); }}
-          rectPreview={drawing && rectMode && rectStart && rectHover ? { a: rectStart, b: rectHover } : null}
-          editRoomId={geometryRoomId}
-          onGeometryChange={(roomId, geometry) => {
-            setRooms((rs) => rs.map((r) => (r.id === roomId ? { ...r, geometry } : r)));
-            setGeometryDirty(true);
-          }}
-        />
-      )}
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setFinishOpen(false)}>Назад</Button>
+              <Button type="submit" loading={busy}>Сохранить</Button>
+            </Group>
+          </Stack>
+        </form>
+      </Modal>
       {drawing && !finishOpen && (
         <Text size="sm" c="dimmed" mt="xs">
           {rectMode

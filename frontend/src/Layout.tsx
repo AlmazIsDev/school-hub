@@ -132,7 +132,7 @@ export default function Layout() {
       </AppShell.Navbar>
       {/* AppShell.Main не трогаем: у него встроенный padding-top под хедер */}
       <AppShell.Main bg="var(--mantine-color-body)">
-        <Container size="lg" px="md" py="lg">
+        <Container size="xl" px="md" py="lg">
           <Outlet />
         </Container>
       </AppShell.Main>
