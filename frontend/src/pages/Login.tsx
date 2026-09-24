@@ -36,6 +36,7 @@ export default function Login() {
             placeholder="Например, school1"
             value={schoolCode}
             onChange={(e) => setSchoolCode(e.currentTarget.value)}
+            required
           />
           <TextInput
             label="Логин"

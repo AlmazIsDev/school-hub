@@ -230,9 +230,13 @@ async def search_rooms(q: str, user: dict = Depends(get_current_user)):
         return []
     floor_ids = {r.floor_id for r in rooms}
     floors = {str(f.id): f for f in await Floor.find({"_id": {"$in": [_get(i) for i in floor_ids]}}).to_list()}
+    building_ids = {f.building_id for f in floors.values()}
+    buildings = {str(b.id): b for b in await Building.find({"_id": {"$in": [_get(i) for i in building_ids]}}).to_list()}
     out = []
     for r in rooms:
         f = floors.get(r.floor_id)
+        b = buildings.get(f.building_id) if f else None
         out.append({"id": str(r.id), "number": r.number, "name": r.name,
-                    "floor_id": r.floor_id, "building_id": f.building_id if f else None})
+                    "floor_id": r.floor_id, "building_id": f.building_id if f else None,
+                    "floor_level": f.level if f else None, "building_name": b.name if b else None})
     return out

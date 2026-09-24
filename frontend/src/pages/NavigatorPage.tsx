@@ -3,12 +3,16 @@ import {
   Button, Card, Group, Modal, NativeSelect, NumberInput, Stack, Table, Tabs, Text, TextInput, Title,
 } from "@mantine/core";
 import { apiBlob, apiFetch } from "../api";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth";
-import MapView, { type Room } from "../modules/navigator/MapView";
+import MapView, { polygonSelfIntersects, type Room } from "../modules/navigator/MapView";
 
 type Building = { id: string; name: string; address: string };
 type Floor = { id: string; building_id: string; level: number; plan_id: string | null };
-type SearchResult = { id: string; number: string; name: string; floor_id: string; building_id: string | null };
+type SearchResult = {
+  id: string; number: string; name: string; floor_id: string; building_id: string | null;
+  floor_level: number | null; building_name: string | null;
+};
 
 function errMsg(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
@@ -86,11 +90,38 @@ function Viewer({ buildings }: { buildings: Building[] }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resetKey, setResetKey] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
   const { url: planUrl, error: planError } = usePlanObjectUrl(
     floors.find((f) => f.id === floorId)?.plan_id,
   );
   // этаж, выбранный при переходе из поиска, применяется после загрузки этажей здания
   const pendingFloorRef = useRef<string | null>(null);
+
+  // deep links: /navigator?building=..&floor=..&room=..
+  useEffect(() => {
+    if (buildingId || buildings.length === 0) return;
+    const b = searchParams.get("building") ?? "";
+    const bld = buildings.find((x) => x.id === b);
+    if (bld) setBuildingId(bld.id);
+  }, [buildings, buildingId, searchParams]);
+
+  useEffect(() => {
+    if (!floorId) return;
+    const r = searchParams.get("room");
+    if (r && r !== highlightRoomId) {
+      setHighlightRoomId(r);
+      setSelectedRoom(null);
+    }
+  }, [floorId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const syncUrl = (b: string | null, f: string | null, r: string | null) => {
+    const p = new URLSearchParams();
+    if (b) p.set("building", b);
+    if (f) p.set("floor", f);
+    if (r) p.set("room", r);
+    setSearchParams(p, { replace: true });
+  };
 
   // NativeSelect без пустой опции рисует первое здание как «выбранное», хотя стейт пуст - карта стоит, пока не передёрнешь селектор. Синхронизируем.
   useEffect(() => {
@@ -104,7 +135,10 @@ function Viewer({ buildings }: { buildings: Building[] }) {
         setFloors(f);
         const pending = pendingFloorRef.current;
         pendingFloorRef.current = null;
-        setFloorId(pending && f.some((x) => x.id === pending) ? pending : f[0]?.id ?? null);
+        const fromUrl = searchParams.get("floor");
+        setFloorId(pending && f.some((x) => x.id === pending) ? pending
+          : fromUrl && f.some((x) => x.id === fromUrl) ? fromUrl
+          : f[0]?.id ?? null);
       })
       .catch((err) => setError(errMsg(err, "Не удалось загрузить этажи")));
   }, [buildingId]);
@@ -137,6 +171,7 @@ function Viewer({ buildings }: { buildings: Building[] }) {
       setFloorId(r.floor_id);
     }
     setHighlightRoomId(r.id);
+    syncUrl(r.building_id ?? buildingId, r.floor_id, r.id);
   }
 
   const currentFloor = floors.find((f) => f.id === floorId);
@@ -148,14 +183,14 @@ function Viewer({ buildings }: { buildings: Building[] }) {
           label="Здание" maw={280}
           data={buildings.map((b) => ({ value: b.id, label: b.name }))}
           value={buildingId ?? ""}
-          onChange={(e) => { setBuildingId(e.currentTarget.value || null); setHighlightRoomId(null); setSelectedRoom(null); }}
+          onChange={(e) => { const v = e.currentTarget.value || null; setBuildingId(v); setHighlightRoomId(null); setSelectedRoom(null); syncUrl(v, null, null); }}
           disabled={buildings.length === 0}
         />
         <NativeSelect
           label="Этаж" maw={160}
           data={floors.map((f) => ({ value: f.id, label: `Этаж ${f.level}` }))}
           value={floorId ?? ""}
-          onChange={(e) => { setFloorId(e.currentTarget.value || null); setHighlightRoomId(null); setSelectedRoom(null); }}
+          onChange={(e) => { const v = e.currentTarget.value || null; setFloorId(v); setHighlightRoomId(null); setSelectedRoom(null); syncUrl(buildingId, v, null); }}
           disabled={floors.length === 0}
         />
         <form onSubmit={search} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
@@ -165,6 +200,7 @@ function Viewer({ buildings }: { buildings: Building[] }) {
           />
           <Button type="submit" variant="light">Найти</Button>
         </form>
+        <Button variant="default" onClick={() => setResetKey((k) => k + 1)}>Сбросить зум</Button>
       </Group>
 
       {error && <div role="alert">{error}</div>}
@@ -176,6 +212,9 @@ function Viewer({ buildings }: { buildings: Building[] }) {
           {results.map((r) => (
             <Text key={r.id} component="a" onClick={() => goToRoom(r)} c="blue" style={{ cursor: "pointer" }}>
               {r.number} {r.name && <span>- {r.name}</span>}
+              {(r.floor_level != null || r.building_name) && (
+                <Text span c="dimmed" size="sm"> ({[r.building_name, r.floor_level != null ? `этаж ${r.floor_level}` : null].filter(Boolean).join(", ")})</Text>
+              )}
             </Text>
           ))}
         </Card>
@@ -188,9 +227,21 @@ function Viewer({ buildings }: { buildings: Building[] }) {
           <div style={{ flex: 1, minWidth: 320 }}>
             {currentFloor.plan_id
               ? <MapView planUrl={planUrl} rooms={rooms} highlightRoomId={highlightRoomId}
+                  selectedRoomId={selectedRoom?.id ?? null} resetKey={resetKey}
                   onRoomClick={setSelectedRoom} />
               : <Text c="dimmed">План не загружен.</Text>}
           </div>
+          <Card withBorder w={240} mah={520} style={{ overflowY: "auto" }}>
+            <Title order={3} size="h4" mb="xs">Кабинеты этажа</Title>
+            {rooms.length === 0 && <Text c="dimmed">Пока нет.</Text>}
+            {rooms.map((r) => (
+              <Text key={r.id} component="a" c={r.id === highlightRoomId ? "orange" : "blue"}
+                style={{ cursor: "pointer" }}
+                onClick={() => { setSelectedRoom(r); setHighlightRoomId(r.id); }}>
+                {r.number} {r.name && <Text span c="dimmed" size="sm">- {r.name}</Text>}
+              </Text>
+            ))}
+          </Card>
           {selectedRoom && (
             <Card withBorder w={240}>
               <Title order={3} size="h4">Кабинет {selectedRoom.number}</Title>
@@ -383,6 +434,9 @@ function FloorsEditor({ buildingId, act, busy }: { buildingId: string; act: Act;
 function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: Act; busy: boolean; refreshFloors: () => Promise<void> }) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [drawing, setDrawing] = useState(false);
+  const [rectMode, setRectMode] = useState(false);
+  const [rectStart, setRectStart] = useState<[number, number] | null>(null);
+  const [rectHover, setRectHover] = useState<[number, number] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [geometryMode, setGeometryMode] = useState(false);
   const [geometryRoomId, setGeometryRoomId] = useState<string | null>(null);
@@ -402,6 +456,29 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
   }
   useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [floor.id]);
 
+  // Backspace и ПКМ убирают последнюю точку черновика
+  useEffect(() => {
+    if (!drawing) return;
+    const h = (e: KeyboardEvent) => {
+      if (e.key !== "Backspace") return;
+      const t = e.target as HTMLElement;
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA") return;
+      e.preventDefault();
+      setDraft((d) => d.slice(0, -1));
+      setRectStart(null);
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [drawing]);
+
+  // уход со страницы с несохранёнными правками
+  useEffect(() => {
+    if (!geometryDirty && draft.length === 0) return;
+    const h = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [geometryDirty, draft.length]);
+
   async function uploadPlan(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.currentTarget.files?.[0];
     e.currentTarget.value = "";
@@ -416,6 +493,16 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
 
   function onMapClick(point: [number, number]) {
     if (!drawing || finishOpen) return;
+    if (rectMode) {
+      if (!rectStart) { setRectStart(point); return; }
+      // второй клик: четыре вершины прямоугольника, дальше обычная форма «Завершить»
+      const [ax, ay] = rectStart, [bx, by] = point;
+      setDraft([[ax, ay], [bx, ay], [bx, by], [ax, by]]);
+      setRectStart(null);
+      setRectHover(null);
+      setFinishOpen(true);
+      return;
+    }
     setDraft((d) => [...d, point]);
   }
 
@@ -440,17 +527,22 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
   async function saveRoom(e: React.FormEvent) {
     e.preventDefault();
     if (draft.length < 3) return;
+    const ring = [...draft, draft[0]];
+    if (polygonSelfIntersects(ring)) {
+      setError("Полигон самопересекается - проверь контур");
+      return;
+    }
     if (await act(
       () => apiFetch("/nav/rooms", {
         method: "POST",
         body: JSON.stringify({
           floor_id: floor.id, number: roomNumber.trim(), name: roomName.trim(),
-          geometry: { type: "Polygon", coordinates: [[...draft, draft[0]]] },
+          geometry: { type: "Polygon", coordinates: [ring] },
         }),
       }),
       "Не удалось сохранить комнату",
     )) {
-      setDraft([]); setRoomNumber(""); setRoomName(""); setFinishOpen(false); setDrawing(false);
+      setDraft([]); setRoomNumber(""); setRoomName(""); setFinishOpen(false); setDrawing(false); setRectMode(false);
       await refresh();
     }
   }
@@ -458,16 +550,19 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
   return (
     <Card withBorder>
       <Group gap="sm" mb="md">
-        <Button variant={drawing ? "filled" : "light"} onClick={() => { setDrawing(!drawing); setDeleting(false); setDraft([]); setFinishOpen(false); }}>
-          {drawing ? "Режим рисования: вкл" : "Добавить комнату"}
+        <Button variant={drawing && !rectMode ? "filled" : "light"} onClick={() => { setDrawing(!drawing || rectMode); setRectMode(false); setRectStart(null); setDeleting(false); setDraft([]); setFinishOpen(false); }}>
+          {drawing && !rectMode ? "Режим рисования: вкл" : "Добавить комнату"}
         </Button>
-        <Button variant={deleting ? "filled" : "light"} color="red" onClick={() => { setDeleting(!deleting); setDrawing(false); setEditingRoomMode(false); setDraft([]); }}>
+        <Button variant={drawing && rectMode ? "filled" : "light"} onClick={() => { const on = !(drawing && rectMode); setDrawing(on); setRectMode(on); setRectStart(null); setDeleting(false); setDraft([]); setFinishOpen(false); }}>
+          {drawing && rectMode ? "Прямоугольник: вкл" : "Добавить прямоугольник"}
+        </Button>
+        <Button variant={deleting ? "filled" : "light"} color="red" onClick={() => { setDeleting(!deleting); setDrawing(false); setRectMode(false); setEditingRoomMode(false); setDraft([]); }}>
           {deleting ? "Режим удаления: вкл" : "Удалять комнаты кликом"}
         </Button>
-        <Button variant={editingRoomMode ? "filled" : "light"} onClick={() => { setEditingRoomMode(!editingRoomMode); setDrawing(false); setDeleting(false); setGeometryMode(false); setDraft([]); }}>
+        <Button variant={editingRoomMode ? "filled" : "light"} onClick={() => { setEditingRoomMode(!editingRoomMode); setDrawing(false); setRectMode(false); setDeleting(false); setGeometryMode(false); setDraft([]); }}>
           {editingRoomMode ? "Режим правки: вкл" : "Править комнаты кликом"}
         </Button>
-        <Button variant={geometryMode ? "filled" : "light"} onClick={() => { setGeometryMode(!geometryMode); setDrawing(false); setDeleting(false); setEditingRoomMode(false); setDraft([]); setGeometryRoomId(null); setGeometryDirty(false); }}>
+        <Button variant={geometryMode ? "filled" : "light"} onClick={() => { setGeometryMode(!geometryMode); setDrawing(false); setRectMode(false); setDeleting(false); setEditingRoomMode(false); setDraft([]); setGeometryRoomId(null); setGeometryDirty(false); }}>
           {geometryMode ? "Режим геометрии: вкл" : "Двигать/править форму"}
         </Button>
         <Button component="label" variant="light">
@@ -477,14 +572,15 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
         {drawing && (
           <>
             <Text size="sm">Точек: {draft.length}</Text>
-            <Button disabled={draft.length < 3 || finishOpen} onClick={() => setFinishOpen(true)}>Завершить</Button>
-            <Button variant="subtle" color="red" onClick={() => setDraft([])}>Отмена</Button>
+            <Button disabled={draft.length < 3 || finishOpen} onClick={() => { setRectStart(null); setFinishOpen(true); }}>Завершить</Button>
+            <Button variant="subtle" color="red" onClick={() => { setDraft([]); setRectStart(null); }}>Отмена</Button>
           </>
         )}
       </Group>
 
       {error && <div role="alert">{error}</div>}
       {planError && <div role="alert">{planError}</div>}
+      {geometryDirty && <Text size="sm" fw={600} c="orange">Есть несохранённые правки геометрии.</Text>}
 
       {finishOpen ? (
         <Card withBorder component="form" onSubmit={saveRoom} mb="md" maw={420}>
@@ -504,6 +600,9 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
           onRoomClick={onRoomClick}
           onMapClick={onMapClick}
           draft={drawing ? draft : undefined}
+          onDraftChange={(pts) => setDraft(pts as [number, number][])}
+          onMouseMove={(p) => { if (drawing && rectMode && rectStart) setRectHover([Math.round(p[0] / 10) * 10, Math.round(p[1] / 10) * 10]); }}
+          rectPreview={drawing && rectMode && rectStart && rectHover ? { a: rectStart, b: rectHover } : null}
           editRoomId={geometryRoomId}
           onGeometryChange={(roomId, geometry) => {
             setRooms((rs) => rs.map((r) => (r.id === roomId ? { ...r, geometry } : r)));
@@ -511,7 +610,13 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
           }}
         />
       )}
-      {drawing && !finishOpen && <Text size="sm" c="dimmed" mt="xs">Кликай по карте, чтобы ставить вершины полигона.</Text>}
+      {drawing && !finishOpen && (
+        <Text size="sm" c="dimmed" mt="xs">
+          {rectMode
+            ? rectStart ? "Второй клик - противоположный угол прямоугольника." : "Первый клик - угол прямоугольника."
+            : "Кликай по карте, чтобы ставить вершины. Тяни вершины и контур, ПКМ или Backspace - убрать последнюю точку."}
+        </Text>
+      )}
 
       {geometryMode && (
         geometryRoomId ? (
@@ -521,6 +626,10 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
               loading={busy}
               onClick={async () => {
                 const room = rooms.find((r) => r.id === geometryRoomId)!;
+                if (polygonSelfIntersects(room.geometry.coordinates[0])) {
+                  setError("Полигон самопересекается - проверь контур");
+                  return;
+                }
                 if (await act(() =>
                   apiFetch(`/nav/rooms/${room.id}`, {
                     method: "PUT",
