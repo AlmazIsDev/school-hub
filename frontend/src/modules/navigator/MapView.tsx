@@ -33,8 +33,8 @@ const SNAP_PX = 12;
 type View = { x: number; y: number; w: number; h: number };
 
 /**
- * Карта этажа на чистом SVG: координаты — пиксели плана, GeoJSON [x, y]
- * рисуется напрямую. Зум колесом и пан перетаскиванием — через viewBox.
+ * Карта этажа на чистом SVG: координаты - пиксели плана, GeoJSON [x, y]
+ * рисуется напрямую. Зум колесом и пан перетаскиванием - через viewBox.
  */
 export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft, highlightRoomId, editRoomId, onGeometryChange }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -51,7 +51,7 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
   const cbRef = useRef({ onRoomClick, onMapClick, onGeometryChange });
   useEffect(() => { cbRef.current = { onRoomClick, onMapClick, onGeometryChange }; });
 
-  // размеры плана — для viewBox
+  // размеры плана - для viewBox
   useEffect(() => {
     if (!planUrl) { setPlanSize({ w: 1000, h: 1000 }); return; }
     let cancelled = false;
@@ -65,7 +65,7 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
   }, [planUrl]);
 
   const { w: pw, h: ph } = planSize;
-  // при смене плана — показать его целиком
+  // при смене плана - показать его целиком
   useEffect(() => { setView({ x: 0, y: 0, w: pw, h: ph }); }, [pw, ph]);
 
   const editing = Boolean(editRoomId && onGeometryChange);
@@ -116,7 +116,10 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
   const panMovedRef = useRef(false);
 
   function onBackgroundPointerDown(e: React.PointerEvent) {
-    // фон: пан всегда, рисование — по клику без сдвига (см. onBackgroundClick)
+    // pointer capture на svg уводит click к svg - комната его не получит.
+    // На комнате пан не начинаем: клик дойдёт до полигона (режимы «кликом»).
+    if ((e.target as Element).closest(".nv-room")) return;
+    // фон: пан всегда, рисование - по клику без сдвига (см. onBackgroundClick)
     panMovedRef.current = false;
     const [x, y] = eventToPlan(e);
     dragRef.current = { kind: "pan", startX: x, startY: y, orig: view, moved: false };
@@ -185,7 +188,7 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
   const editedRoom = rooms.find((r) => r.id === editRoomId) ?? null;
   const editedRing = editGeom ?? editedRoom?.geometry.coordinates[0] ?? null;
 
-  // размеры экранного UI обратно пропорциональны зуму — на экране выглядят константно
+  // размеры экранного UI обратно пропорциональны зуму - на экране выглядят константно
   const labelFs = view.w / 45;
   const marker = Math.max(6, view.w / 70);
 
@@ -193,7 +196,7 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
     <svg
       ref={svgRef}
       viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-      style={{ width: "100%", height: "70vh", minHeight: 480, border: "1px solid #dee2e6", borderRadius: 8, background: "#fff", touchAction: "none", userSelect: "none" }}
+      style={{ width: "100%", height: "70vh", minHeight: 480, border: "1px solid var(--mantine-color-default-border)", borderRadius: 8, background: "var(--mantine-color-body)", touchAction: "none", userSelect: "none" }}
       onClick={onBackgroundClick}
       onPointerDown={onBackgroundPointerDown}
       onPointerMove={onPointerMove}
@@ -244,7 +247,7 @@ export default function MapView({ planUrl, rooms, onRoomClick, onMapClick, draft
             </polygon>
             {r.number && (
               <text x={cx} y={cy} textAnchor="middle" fontSize={labelFs}
-                fill="#1c2a3a" stroke="#fff" strokeWidth={labelFs / 8} paintOrder="stroke"
+                fill="var(--mantine-color-text)" stroke="#fff" strokeWidth={labelFs / 8} paintOrder="stroke"
                 style={{ pointerEvents: "none", fontWeight: 600 }}>
                 {r.number}
               </text>

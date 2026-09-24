@@ -13,7 +13,7 @@ const queryClient = new QueryClient();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <MantineProvider theme={theme}>
+      <MantineProvider theme={theme} defaultColorScheme="auto">
         <AuthProvider>
           <BrowserRouter>
             <App />
