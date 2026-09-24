@@ -92,6 +92,11 @@ function Viewer({ buildings }: { buildings: Building[] }) {
   // этаж, выбранный при переходе из поиска, применяется после загрузки этажей здания
   const pendingFloorRef = useRef<string | null>(null);
 
+  // NativeSelect без пустой опции рисует первое здание как «выбранное», хотя стейт пуст - карта стоит, пока не передёрнешь селектор. Синхронизируем.
+  useEffect(() => {
+    if (!buildingId && buildings.length > 0) setBuildingId(buildings[0].id);
+  }, [buildings, buildingId]);
+
   useEffect(() => {
     if (!buildingId) { setFloors([]); setFloorId(null); return; }
     apiFetch<Floor[]>(`/nav/floors?building_id=${buildingId}`)
@@ -170,7 +175,7 @@ function Viewer({ buildings }: { buildings: Building[] }) {
           {results.length === 0 && <Text c="dimmed">Ничего не найдено.</Text>}
           {results.map((r) => (
             <Text key={r.id} component="a" onClick={() => goToRoom(r)} c="blue" style={{ cursor: "pointer" }}>
-              {r.number} {r.name && <span>— {r.name}</span>}
+              {r.number} {r.name && <span>- {r.name}</span>}
             </Text>
           ))}
         </Card>
@@ -361,7 +366,7 @@ function FloorsEditor({ buildingId, act, busy }: { buildingId: string; act: Act;
           {floors.length === 0 && <Table.Tr><Table.Td colSpan={3} c="dimmed">Этажей пока нет.</Table.Td></Table.Tr>}
         </Table.Tbody>
       </Table>
-      {/* этаж мог удалиться (или ещё грузиться) — рендерим только существующий */}
+      {/* этаж мог удалиться (или ещё грузиться) - рендерим только существующий */}
       {(() => {
         const f = floors.find((x) => x.id === floorId);
         return f ? <FloorEditor key={f.id} floor={f} act={act} busy={busy} refreshFloors={refresh} /> : null;
@@ -399,7 +404,7 @@ function FloorEditor({ floor, act, busy, refreshFloors }: { floor: Floor; act: A
     const fd = new FormData();
     fd.append("file", file);
     if (await act(() => apiFetch(`/nav/floors/${floor.id}/plan`, { method: "POST", body: fd }), "Не удалось загрузить план")) {
-      // plan_id после загрузки новый — обновляем список этажей, FloorEditor перезапустится по key
+      // plan_id после загрузки новый - обновляем список этажей, FloorEditor перезапустится по key
       await refreshFloors();
     }
   }
