@@ -167,3 +167,26 @@ async def test_db_create_doc(client, db):
                           json={"grade": 6, "letter": "Г"}, headers=h)
     assert r.status_code == 200
     assert await db.get_database("test")["school_classes"].find_one({"grade": 6}) is not None
+
+
+# ---------- impersonation ----------
+
+@pytest.mark.asyncio
+async def test_impersonate(client, db):
+    uid = await _student(client)
+    h = await _h(client)
+    r = await client.post(f"/api/users/{uid}/impersonate", headers=h)
+    assert r.status_code == 200
+    tok = r.json()["access"]
+    # токен целевого пользователя реально работает как его сессия
+    me = await client.get("/api/me", headers={"Authorization": f"Bearer {tok}"})
+    assert me.json()["role"] == "student"
+
+@pytest.mark.asyncio
+async def test_impersonate_guards(client, db):
+    uid = await _student(client)
+    h = await _h(client)
+    r = await client.post(f"/api/users/{uid}/impersonate", headers=h)
+    # нельзя занять чужую школу и самого себя
+    r2 = await client.post(f"/api/users/{uid}/impersonate", headers={})
+    assert r2.status_code in (401, 403)

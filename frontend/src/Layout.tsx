@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { AppShell, Burger, Button, Container, Group, NavLink, Select, Title } from "@mantine/core";
+import { ActionIcon, AppShell, Burger, Button, Container, Group, NavLink, Select, Title, useMantineColorScheme } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth";
-import { apiFetch, getActiveSchool, setActiveSchool } from "./api";
+import { apiFetch, getActiveSchool, getImpersonator, setActiveSchool, setTokens, stopImpersonation } from "./api";
 
 type School = { id: string; name: string; code: string };
 
@@ -31,9 +31,17 @@ export default function Layout() {
   const [opened, { toggle }] = useDisclosure(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+  const [impersonator, setImpersonator] = useState(getImpersonator);
   const canModerate = user?.role === "teacher" || user?.role === "admin" || user?.role === "superadmin";
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isSuperadmin = user?.role === "superadmin";
+
+  const exitImpersonation = () => {
+    stopImpersonation();
+    setImpersonator(null);
+    window.location.href = "/admin";
+  };
 
   return (
     <AppShell header={{ height: 56 }} navbar={{ width: 220, breakpoint: "sm", collapsed: { mobile: !opened } }}>
@@ -46,7 +54,19 @@ export default function Layout() {
           <Group>
             {isSuperadmin && <SchoolPicker />}
             <span>{user?.role}</span>
-            <Button variant="subtle" onClick={() => { logout(); navigate("/login"); }}>Выйти</Button>
+            <ActionIcon
+              variant="default" size="lg" aria-label="Сменить тему"
+              onClick={() => toggleColorScheme()}
+            >
+              {colorScheme === "dark" ? "☀" : "☾"}
+            </ActionIcon>
+            {impersonator ? (
+              <Button variant="light" color="orange" onClick={exitImpersonation}>
+                Вернуться на {impersonator.name}
+              </Button>
+            ) : (
+              <Button variant="subtle" onClick={() => { logout(); navigate("/login"); }}>Выйти</Button>
+            )}
           </Group>
         </Group>
       </AppShell.Header>
@@ -111,7 +131,7 @@ export default function Layout() {
         )}
       </AppShell.Navbar>
       {/* AppShell.Main не трогаем: у него встроенный padding-top под хедер */}
-      <AppShell.Main bg="gray.0">
+      <AppShell.Main bg="var(--mantine-color-body)">
         <Container size="lg" px="md" py="lg">
           <Outlet />
         </Container>

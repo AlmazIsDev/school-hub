@@ -15,7 +15,7 @@ export function setTokens(t: Tokens | null) {
   setActiveSchool(null);
 }
 
-/** Активная школа superadmin'а — бэкенд подставляет её как school_id (X-School-Id). */
+/** Активная школа superadmin'а - бэкенд подставляет её как school_id (X-School-Id). */
 export function getActiveSchool(): string | null {
   return localStorage.getItem("active_school");
 }
@@ -25,11 +25,34 @@ export function setActiveSchool(id: string | null) {
   else localStorage.removeItem("active_school");
 }
 
+export type Impersonator = { tokens: Tokens; name: string };
+
+/** Чей аккаунт мы «заняли» - чтобы кнопка «Вернуться» переживала F5. */
+export function getImpersonator(): Impersonator | null {
+  try {
+    const v = JSON.parse(localStorage.getItem("impersonator") ?? "null");
+    return v && v.tokens?.access ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function startImpersonation(v: Impersonator) {
+  localStorage.setItem("impersonator", JSON.stringify(v));
+  setTokens(v.tokens);
+}
+
+export function stopImpersonation() {
+  const imp = getImpersonator();
+  localStorage.removeItem("impersonator");
+  if (imp) setTokens(imp.tokens);
+}
+
 async function rawFetch(path: string, opts: RequestInit): Promise<Response> {
   const r = await fetch(base + path, {
     ...opts,
     headers: {
-      // FormData выставляет свой multipart Content-Type с boundary — не трогаем
+      // FormData выставляет свой multipart Content-Type с boundary - не трогаем
       ...(opts.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(tokens ? { Authorization: `Bearer ${tokens.access}` } : {}),
       ...(getActiveSchool() ? { "X-School-Id": getActiveSchool()! } : {}),
@@ -53,7 +76,7 @@ async function rawFetch(path: string, opts: RequestInit): Promise<Response> {
 
 async function unwrapError(r: Response): Promise<never> {
   const detail = (await r.json().catch(() => ({})))?.detail;
-  // pydantic 422 отдаёт detail массивом ошибок — склеиваем в читаемый список
+  // pydantic 422 отдаёт detail массивом ошибок - склеиваем в читаемый список
   const msg = Array.isArray(detail)
     ? detail.map((e: { msg?: string }) => e.msg ?? JSON.stringify(e)).join("; ")
     : detail;
@@ -66,14 +89,14 @@ export async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise
   return r.json();
 }
 
-/** То же, что apiFetch, но возвращает blob (планы этажей — с Authorization, не по прямой ссылке). */
+/** То же, что apiFetch, но возвращает blob (планы этажей - с Authorization, не по прямой ссылке). */
 export async function apiBlob(path: string): Promise<Blob> {
   const r = await rawFetch(path, {});
   if (!r.ok) return unwrapError(r);
   return r.blob();
 }
 
-/** Декодирует payload JWT без проверки подписи — роль и id нужны только для UI. */
+/** Декодирует payload JWT без проверки подписи - роль и id нужны только для UI. */
 export function tokenPayload(token: string): { sub: string; role: string } {
   const payload = JSON.parse(atob(token.split(".")[1]));
   return { sub: payload.sub, role: payload.role };

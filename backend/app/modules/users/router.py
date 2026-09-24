@@ -65,8 +65,7 @@ async def create_user(body: schemas.UserCreateIn, user: dict = Depends(require_r
     try:
         _, temp = await service.create_user(school_id=user["school_id"], **body.model_dump())
     except DuplicateKeyError as err:
-        # mongomock индексы не эмулирует, реальный Mongo отсекает гонку;
-        # какой именно индекс споткнулся — видно в сообщении (login/vk_id)
+        # mongomock индексы не эмулирует, реальный Mongo отсекает гонку; какой именно индекс споткнулся - видно в сообщении (login/vk_id)
         raise HTTPException(409, f"Конфликт уникальности: {err.details.get('keyPattern', 'логин занят')}")
     return {"ok": True, "temp_password": temp}
 
@@ -75,7 +74,7 @@ async def list_users(user: dict = Depends(require_role("admin", "teacher"))):
     if not user.get("school_id"):
         if user.get("role") != "superadmin":
             raise HTTPException(403, "Только для сотрудников школы")
-        # платформенный админ без выбранной школы — общая база всех школ
+        # платформенный админ без выбранной школы - общая база всех школ
         rows = await User.find_all().to_list()
     else:
         rows = await User.find(User.school_id == user["school_id"]).to_list()
@@ -134,6 +133,16 @@ async def reset_password(user_id: str, user: dict = Depends(require_role("admin"
     return {"temp_password": temp}
 
 
+@router.post("/users/{user_id}/impersonate")
+async def impersonate(user_id: str, user: dict = Depends(require_role("admin"))):
+    u = await _get_user_or_404(user_id)
+    _ensure_same_school(user, u)
+    if str(u.id) == user["id"]:
+        raise HTTPException(409, "Вы уже в своём аккаунте")
+    # токен неотличим от обычного логина - сессия админа хранится на фронте
+    return make_tokens(u.id, u.role, u.school_id)
+
+
 @router.delete("/users/{user_id}/vk")
 async def admin_unlink_vk(user_id: str, user: dict = Depends(require_role("admin"))):
     u = await _get_user_or_404(user_id)
@@ -155,7 +164,7 @@ async def delete_class(class_id: str, user: dict = Depends(require_role("admin")
     if cls.school_id != user.get("school_id"):
         raise HTTPException(404, "Класс не найден")
     if await User.find_one(User.class_id == class_id):
-        raise HTTPException(409, "В классе есть ученики — сначала переведи их")
+        raise HTTPException(409, "В классе есть ученики - сначала переведи их")
     await cls.delete()
     return {"ok": True}
 

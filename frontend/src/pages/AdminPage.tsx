@@ -3,7 +3,7 @@ import {
   Button, Card, Group, Modal, NativeSelect, NumberInput, Pagination, Stack, Table, Text,
   TextInput, Title, Textarea,
 } from "@mantine/core";
-import { apiFetch } from "../api";
+import { apiFetch, startImpersonation, type Tokens } from "../api";
 
 type SchoolClass = { id: string; grade: number; letter: string };
 type AppUser = {
@@ -137,6 +137,15 @@ export default function AdminPage() {
     act(() => apiFetch(`/users/${u.id}/vk`, { method: "DELETE" }), "Не удалось отвязать VK");
   };
 
+  const impersonate = (u: AppUser) => {
+    if (!window.confirm(`Зайти как ${u.full_name} (${u.login})?`)) return;
+    act(async () => {
+      const tokens = await apiFetch<Tokens>(`/users/${u.id}/impersonate`, { method: "POST" });
+      startImpersonation({ tokens, name: u.login });
+      window.location.href = "/";
+    }, "Не удалось зайти как пользователь");
+  };
+
   const deleteClass = (c: SchoolClass) => {
     if (!window.confirm(`Удалить класс ${c.grade}«${c.letter}»?`)) return;
     act(() => apiFetch(`/classes/${c.id}`, { method: "DELETE" }), "Не удалось удалить класс");
@@ -226,11 +235,12 @@ export default function AdminPage() {
                 <Table.Td>{u.login}</Table.Td>
                 <Table.Td>{u.full_name}</Table.Td>
                 <Table.Td>{ROLE_LABEL[u.role] ?? u.role}</Table.Td>
-                <Table.Td>{u.class_id ? classById.get(u.class_id) ?? "?" : "—"}</Table.Td>
-                <Table.Td>{u.vk_id != null ? "привязан" : "—"}</Table.Td>
+                <Table.Td>{u.class_id ? classById.get(u.class_id) ?? "?" : "-"}</Table.Td>
+                <Table.Td>{u.vk_id != null ? "привязан" : "-"}</Table.Td>
                 <Table.Td>
                   <Group gap="xs">
                     <Button size="xs" variant="light" onClick={() => openEditUser(u)}>Изменить</Button>
+                    <Button size="xs" variant="light" onClick={() => impersonate(u)}>Зайти как</Button>
                     <Button size="xs" variant="light" onClick={() => resetPassword(u)}>Сбросить пароль</Button>
                     {u.vk_id != null && (
                       <Button size="xs" variant="light" color="red" onClick={() => unlinkVk(u)}>Отвязать VK</Button>
@@ -455,11 +465,13 @@ function DbManager() {
           <Textarea
             value={editing?.text ?? ""}
             onChange={(e) => {
-              // currentTarget обнуляется после обработчика — читаем значение сразу
+              // currentTarget обнуляется после обработчика - читаем значение сразу
               const text = e.currentTarget.value;
               setEditing((cur) => (cur ? { ...cur, text } : cur));
             }}
+            autosize
             minRows={12}
+            maxRows={30}
             styles={{ input: { fontFamily: "monospace", fontSize: 13 } }}
           />
           {jsonError && <div role="alert">{jsonError}</div>}
