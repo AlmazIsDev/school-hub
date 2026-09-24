@@ -140,8 +140,9 @@ export default function AdminPage() {
   const impersonate = (u: AppUser) => {
     if (!window.confirm(`Зайти как ${u.full_name} (${u.login})?`)) return;
     act(async () => {
-      const adminTokens = getTokens()!;
       const res = await apiFetch<Tokens & { admin_login: string }>(`/users/${u.id}/impersonate`, { method: "POST" });
+      // токены берём после запроса: если access истёк, refresh внутри apiFetch уже их обновил
+      const adminTokens = getTokens()!;
       startImpersonation(res, { tokens: adminTokens, name: res.admin_login });
       window.location.href = "/";
     }, "Не удалось зайти как пользователь");
