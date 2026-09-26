@@ -72,7 +72,7 @@ async def duty(db):
                     "user_id": uid, "date": (monday + timedelta(days=wd - 1))
                     .replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc),
                     "marked_at": NOW, "_demo": True}
-                   for wd in range(1, NOW.weekday() + 2)  # прошедшие и текущий день
+                   for wd in range(1, min(NOW.weekday(), 4) + 1)  # прошедшие будни, выходных в расписании нет
                    for slot, uid in [(2, user_ids[wd * 2 - 2]), (5, user_ids[wd * 2 - 1])]]
     await db.duty_completions.insert_many(completions)
 
