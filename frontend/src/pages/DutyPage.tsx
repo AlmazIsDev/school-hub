@@ -331,7 +331,7 @@ function ScheduleEditor({ zones, students, schedules, busy, onSave }: {
                     style={(theme) => ({
                       cursor: "pointer",
                       minWidth: 90,
-                      background: uid ? theme.colors.blue[0] : undefined,
+                      background: uid ? "var(--mantine-color-blue-light)" : undefined,
                       "&:hover": { outline: "2px solid " + theme.colors.blue[4] },
                       "&:focus-visible": { outline: "2px solid " + theme.colors.blue[6] },
                     })}
