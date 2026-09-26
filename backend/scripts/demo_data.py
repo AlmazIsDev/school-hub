@@ -15,6 +15,7 @@ os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017/schoolhub")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("JWT_SECRET", "demo-only-not-a-secret")
 
+from bson import ObjectId  # noqa: E402
 from motor.motor_asyncio import AsyncIOMotorClient  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
@@ -25,10 +26,47 @@ CLASS_ID = "6ab20da1be46f2558fafc765"
 TEACHER_ID = "6ab20da6be46f2558fafc766"
 
 NOW = datetime.now(timezone.utc)
+DEMO_PASSWORD = "demo1234"
+
+
+async def accounts(db):
+    """Школа, класс, учитель и 10 учеников - носители всех id из этого скрипта.
+
+    Учитель: логин teacher, ученики u01..u10, пароль у всех demo1234.
+    """
+    from app.core.auth import hash_password
+
+    pw = hash_password(DEMO_PASSWORD)
+    await db.schools.replace_one({"_id": ObjectId(SCHOOL_ID)},
+                                 {"name": "Демо-школа", "code": "school1",
+                                  "created_at": NOW, "_demo": True}, upsert=True)
+    await db.school_classes.replace_one({"_id": ObjectId(CLASS_ID)},
+                                        {"school_id": SCHOOL_ID, "grade": 9,
+                                         "letter": "А", "_demo": True}, upsert=True)
+    users = [{"_id": ObjectId(TEACHER_ID), "school_id": SCHOOL_ID, "login": "teacher",
+              "password_hash": pw, "full_name": "Павел Сергеевич Демо",
+              "role": "teacher", "password_temp": False, "created_at": NOW, "_demo": True}]
+    for i in range(1, 11):
+        users.append({"_id": ObjectId(f"6abd000000000000000000{i:02d}"),
+                      "school_id": SCHOOL_ID, "login": f"u{i:02d}", "password_hash": pw,
+                      "full_name": f"Ученик Демо {i:02d}", "role": "student",
+                      "class_id": CLASS_ID, "password_temp": False,
+                      "created_at": NOW, "_demo": True})
+    for u in users:
+        await db.users.replace_one({"_id": u["_id"]}, u, upsert=True)
 
 
 async def pulse(db):
-    """Ответы на открытый опрос: 18 учеников, шкала 3-5 + свободные тексты."""
+    """Опрос физики + ответы: 18 учеников, шкала 3-5 + свободные тексты."""
+    await db.pulse_polls.replace_one(
+        {"_id": ObjectId(POLL_ID)},
+        {"school_id": SCHOOL_ID, "teacher_id": TEACHER_ID, "class_id": CLASS_ID,
+         "title": "Физика", "topic": "Закон всемирного тяготения", "status": "active",
+         "notified": True,
+         "questions": [{"text": "Насколько понятна тема?", "type": "scale1_5"},
+                       {"text": "Напишите свой вопрос", "type": "free_text"}],
+         "created_at": NOW - timedelta(days=2), "closed_at": None, "_demo": True},
+        upsert=True)
     free_texts = [
         "Почему орбиты эллиптические, а не круглые?",
         "Не понял, откуда G берётся",
@@ -54,7 +92,7 @@ async def pulse(db):
 
 async def duty(db):
     """Зона дежурства + расписание на неделю + отметки за прошедшие дни."""
-    zone_id = "6abde0000000000000000001"
+    zone_id = ObjectId("6abde0000000000000000001")
     await db.duty_zones.delete_many({"_demo": True})
     await db.duty_schedules.delete_many({"_demo": True})
     await db.duty_completions.delete_many({"_demo": True})
@@ -64,11 +102,11 @@ async def duty(db):
     week = [{"weekday": wd, "slot": slot, "user_id": uid, "_demo": True}
             for wd in range(1, 6)
             for slot, uid in [(2, user_ids[wd * 2 - 2]), (5, user_ids[wd * 2 - 1])]]
-    await db.duty_schedules.insert_one({"school_id": SCHOOL_ID, "teacher_id": TEACHER_ID,
-                                        "zone_id": zone_id, "week_pattern": week,
-                                        "created_at": NOW, "_demo": True})
+    res = await db.duty_schedules.insert_one({"school_id": SCHOOL_ID, "teacher_id": TEACHER_ID,
+                                              "zone_id": str(zone_id), "week_pattern": week,
+                                              "created_at": NOW, "_demo": True})
     monday = NOW - timedelta(days=NOW.weekday())
-    completions = [{"school_id": SCHOOL_ID, "schedule_id": None, "weekday": wd, "slot": slot,
+    completions = [{"school_id": SCHOOL_ID, "schedule_id": str(res.inserted_id), "weekday": wd, "slot": slot,
                     "user_id": uid, "date": (monday + timedelta(days=wd - 1))
                     .replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc),
                     "marked_at": NOW, "_demo": True}
@@ -94,7 +132,7 @@ QUEST_STRUCTURE = {
 
 async def builder(db):
     """Квест по физике + прогоны учеников."""
-    quest_id = "6abde0000000000000000002"
+    quest_id = ObjectId("6abde0000000000000000002")
     await db.builder_quests.delete_many({"_demo": True})
     await db.builder_runs.delete_many({"_demo": True})
     await db.builder_quests.insert_one({
@@ -105,7 +143,7 @@ async def builder(db):
     runs = []
     for i in range(12):
         good = i < 8
-        runs.append({"school_id": SCHOOL_ID, "quest_id": quest_id,
+        runs.append({"school_id": SCHOOL_ID, "quest_id": str(quest_id),
                      "user_id": f"6abd000000000000000000{i:02d}",
                      "finished": True, "score": 2 if good else 1,
                      "trace": [{"block_id": "q1", "value": "Уменьшится в 4 раза" if good else "Уменьшится в 2 раза"},
@@ -151,7 +189,7 @@ async def media(db):
 async def main():
     client = AsyncIOMotorClient(settings.mongo_url, tz_aware=True)
     db = client.get_default_database()
-    for step in (pulse, duty, builder, media):
+    for step in (accounts, pulse, duty, builder, media):
         await step(db)
         print(f"ok: {step.__name__}")
 
