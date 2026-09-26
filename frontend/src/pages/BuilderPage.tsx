@@ -52,6 +52,13 @@ const TYPE_LABEL: Record<BlockType, string> = {
   end: "Финал",
 };
 
+const TYPE_HINT: Record<BlockType, string> = {
+  question: "Ученик выбирает один из вариантов. Далее переход в блок, указанный в «Следующий блок».",
+  branch: "Ответ ученика сравнивается с условием: совпало - переход «Если совпал», не совпало - «Если не совпал».",
+  hint: "Просто текст без выбора: показать подсказку и вести дальше.",
+  end: "Завершает квест и начисляет балл. Любая ветка должна заканчиваться «Финалом».",
+};
+
 const BLOCK_TYPE_OPTIONS = (Object.keys(TYPE_LABEL) as BlockType[]).map((t) => ({ value: t, label: TYPE_LABEL[t] }));
 
 function emptyBlock(id: string): Block {
@@ -204,7 +211,11 @@ export default function BuilderPage() {
   }
 
   const classOptions = classes.map((c) => ({ value: c.id, label: `${c.grade}«${c.letter}»` }));
-  const idOptions = blocks.map((b) => ({ value: b.id, label: `${b.id} (${TYPE_LABEL[b.type]})` }));
+  const idOptions = blocks.map((b) => {
+    const snippet = (b.type === "question" || b.type === "hint" ? b.text : b.conditionAnswer).trim();
+    const label = snippet ? `${b.id} - ${TYPE_LABEL[b.type]}: ${snippet}` : `${b.id} - ${TYPE_LABEL[b.type]} (без текста)`;
+    return { value: b.id, label: label.length > 60 ? label.slice(0, 57) + "..." : label };
+  });
   const idWithEmpty = [{ value: "", label: "- выберите блок -" }, ...idOptions];
 
   function renderBlockFields(b: Block, i: number) {
@@ -227,17 +238,17 @@ export default function BuilderPage() {
               Добавить вариант
             </Button>
           )}
-          <Select label="Переход (next)" data={idWithEmpty} value={b.next} onChange={(v) => setBlock(i, { next: v ?? "" })} w={280} />
+          <Select label="Следующий блок" data={idWithEmpty} value={b.next} onChange={(v) => setBlock(i, { next: v ?? "" })} w={280} />
         </>
       );
     }
     if (b.type === "branch") {
       return (
         <>
-          <TextInput label="Ответ (условие)" value={b.conditionAnswer} onChange={(e) => setBlock(i, { conditionAnswer: e.currentTarget.value })} maxLength={200} />
+          <TextInput label="Ответ, при котором переход «Если совпал»" value={b.conditionAnswer} onChange={(e) => setBlock(i, { conditionAnswer: e.currentTarget.value })} maxLength={200} />
           <Group gap="xs">
-            <Select label="then (ответ совпал)" data={idWithEmpty} value={b.then} onChange={(v) => setBlock(i, { then: v ?? "" })} w={260} />
-            <Select label="else (не совпал)" data={idWithEmpty} value={b.else} onChange={(v) => setBlock(i, { else: v ?? "" })} w={260} />
+            <Select label="Если совпал - переход в" data={idWithEmpty} value={b.then} onChange={(v) => setBlock(i, { then: v ?? "" })} w={260} />
+            <Select label="Если не совпал - переход в" data={idWithEmpty} value={b.else} onChange={(v) => setBlock(i, { else: v ?? "" })} w={260} />
           </Group>
         </>
       );
@@ -246,11 +257,16 @@ export default function BuilderPage() {
       return (
         <>
           <TextInput label="Текст подсказки" value={b.text} onChange={(e) => setBlock(i, { text: e.currentTarget.value })} maxLength={500} />
-          <Select label="Переход (next)" data={idWithEmpty} value={b.next} onChange={(v) => setBlock(i, { next: v ?? "" })} w={280} />
+          <Select label="Следующий блок" data={idWithEmpty} value={b.next} onChange={(v) => setBlock(i, { next: v ?? "" })} w={280} />
         </>
       );
     }
-    return <NumberInput hideControls allowDecimal={false} allowNegative={false} label="Балл (score)" value={b.score} onChange={(v) => setBlock(i, { score: v })} />;
+    return (
+      <>
+        <NumberInput hideControls allowDecimal={false} allowNegative={false} label="Балл за прохождение" value={b.score} onChange={(v) => setBlock(i, { score: v })} />
+        <Text size="sm" c="dimmed">Квест заканчивается этим блоком: ученик получает здесь свой балл.</Text>
+      </>
+    );
   }
 
   function renderEditor() {
@@ -269,7 +285,7 @@ export default function BuilderPage() {
             onChange={(e) => setClassId(e.currentTarget.value)}
             required
           />
-          <Text size="sm" c="dimmed">Первый блок - стартовый, прохождение начинается с него.</Text>
+          <Text size="sm" c="dimmed">Первый блок - стартовый, прохождение начинается с него. Каждая ветка должна прийти к блоку «Финал» - только в нём ставится балл, без него квест не завершится.</Text>
           {blocks.map((b, i) => (
             <Card key={b.id} withBorder padding="sm" radius="sm">
               <Stack gap="xs">
@@ -292,6 +308,7 @@ export default function BuilderPage() {
                     Удалить блок
                   </Button>
                 </Group>
+                <Text size="sm" c="dimmed">{TYPE_HINT[b.type]}</Text>
                 {renderBlockFields(b, i)}
               </Stack>
             </Card>

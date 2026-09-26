@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Alert, Badge, Button, Card, Center, Group, Loader, Modal, NativeSelect, Select, Stack, Table, Tabs, Text, TextInput, Title,
 } from "@mantine/core";
@@ -41,6 +41,7 @@ function TeacherView() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [zoneName, setZoneName] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const { error, setError, clear } = useApiError();
@@ -156,21 +157,52 @@ function TeacherView() {
               <Table.Tr><Table.Th>Зона</Table.Th><Table.Th>Слотов</Table.Th><Table.Th /></Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {schedules.map((s) => (
-                <Table.Tr key={s.id}>
-                  <Table.Td>{zones.find((z) => z.id === s.zone_id)?.name ?? s.zone_id}</Table.Td>
-                  <Table.Td>{s.week_pattern.length}</Table.Td>
-                  <Table.Td>
-                    <Button size="xs" variant="subtle" color="red" loading={busy}
-                      onClick={() => {
-                        if (!window.confirm("Удалить график? Ученики потеряют слоты дежурства.")) return;
-                        act(() => apiFetch(`/duty/schedules/${s.id}`, { method: "DELETE" }), "Не удалось удалить график");
-                      }}>
-                      Удалить
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
+              {schedules.map((s) => {
+                const nameById = new Map(users.map((u) => [u.id, u.full_name]));
+                const sorted = [...s.week_pattern].sort((a, b) => a.weekday - b.weekday || a.slot - b.slot);
+                return (
+                  <Fragment key={s.id}>
+                    <Table.Tr>
+                      <Table.Td>{zones.find((z) => z.id === s.zone_id)?.name ?? s.zone_id}</Table.Td>
+                      <Table.Td>{s.week_pattern.length}</Table.Td>
+                      <Table.Td>
+                        <Group gap="xs" wrap="nowrap">
+                          <Button size="xs" variant="light" onClick={() => setExpanded(expanded === s.id ? null : s.id)}>
+                            {expanded === s.id ? "Скрыть" : "Кто дежурит"}
+                          </Button>
+                          <Button size="xs" variant="subtle" color="red" loading={busy}
+                            onClick={() => {
+                              if (!window.confirm("Удалить график? Ученики потеряют слоты дежурства.")) return;
+                              act(() => apiFetch(`/duty/schedules/${s.id}`, { method: "DELETE" }), "Не удалось удалить график");
+                            }}>
+                            Удалить
+                          </Button>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                    {expanded === s.id && (
+                      <Table.Tr>
+                        <Table.Td colSpan={3}>
+                          <Table verticalSpacing="xs" maw={480} my="sm" ml="md">
+                            <Table.Thead>
+                              <Table.Tr><Table.Th>День</Table.Th><Table.Th>Слот</Table.Th><Table.Th>Дежурный</Table.Th></Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>
+                              {sorted.map((sl, i) => (
+                                <Table.Tr key={i}>
+                                  <Table.Td>{WEEKDAYS[sl.weekday - 1]}</Table.Td>
+                                  <Table.Td>{sl.slot}</Table.Td>
+                                  <Table.Td>{nameById.get(sl.user_id) ?? sl.user_id}</Table.Td>
+                                </Table.Tr>
+                              ))}
+                            </Table.Tbody>
+                          </Table>
+                        </Table.Td>
+                      </Table.Tr>
+                    )}
+                  </Fragment>
+                );
+              })}
               {schedules.length === 0 && (
                 <Table.Tr><Table.Td colSpan={3} c="dimmed">Графиков нет.</Table.Td></Table.Tr>
               )}
