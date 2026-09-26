@@ -57,7 +57,16 @@ async def accounts(db):
 
 
 async def pulse(db):
-    """Ответы на открытый опрос: 18 учеников, шкала 3-5 + свободные тексты."""
+    """Опрос физики + ответы: 18 учеников, шкала 3-5 + свободные тексты."""
+    await db.pulse_polls.replace_one(
+        {"_id": ObjectId(POLL_ID)},
+        {"school_id": SCHOOL_ID, "teacher_id": TEACHER_ID, "class_id": CLASS_ID,
+         "title": "Физика", "topic": "Закон всемирного тяготения", "status": "active",
+         "notified": True,
+         "questions": [{"text": "Насколько понятна тема?", "type": "scale1_5"},
+                       {"text": "Напишите свой вопрос", "type": "free_text"}],
+         "created_at": NOW - timedelta(days=2), "closed_at": None, "_demo": True},
+        upsert=True)
     free_texts = [
         "Почему орбиты эллиптические, а не круглые?",
         "Не понял, откуда G берётся",
