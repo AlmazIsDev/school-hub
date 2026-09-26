@@ -234,6 +234,20 @@ function ScheduleEditor({ zones, students, schedules, busy, onSave }: {
 
   const byId = useMemo(() => new Map(students.map((s) => [s.value, s.label])), [students]);
 
+  // NativeSelect с пустым value всё равно показывает первый вариант - синхронизируем состояние
+  useEffect(() => {
+    if (!zoneId && zones.length > 0) pickZone(zones[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zones.length]);
+
+  function pickZone(zid: string) {
+    setZoneId(zid);
+    const existing = schedules.find((s) => s.zone_id === zid);
+    const loaded: Record<string, string> = {};
+    existing?.week_pattern.forEach((sl) => { loaded[`${sl.weekday}-${sl.slot}`] = sl.user_id; });
+    setCells(loaded);
+  }
+
   function openCell(key: string) {
     if (!zoneId) { setMsg({ text: "Сначала выбери зону", ok: false }); return; }
     setMsg(null);
@@ -278,15 +292,7 @@ function ScheduleEditor({ zones, students, schedules, busy, onSave }: {
       <Group align="flex-end" gap="sm" mb="md">
         <NativeSelect
           label="Зона" data={zones.map((z) => ({ value: z.id, label: z.name }))}
-          value={zoneId ?? ""} onChange={(e) => {
-            const zid = e.currentTarget.value;
-            setZoneId(zid);
-            // загружаем текущий график зоны в сетку - его видно сразу
-            const existing = schedules.find((s) => s.zone_id === zid);
-            const loaded: Record<string, string> = {};
-            existing?.week_pattern.forEach((sl) => { loaded[`${sl.weekday}-${sl.slot}`] = sl.user_id; });
-            setCells(loaded);
-          }}
+          value={zoneId ?? ""} onChange={(e) => pickZone(e.currentTarget.value)}
           maw={280} required
         />
         <Button loading={busy || saving} onClick={save}>Сохранить график</Button>
