@@ -23,7 +23,7 @@ async def handle_where(event, vk):
          "$or": [{"number": rx}, {"name": rx}]}).limit(MAX_MATCHES + 1).to_list()
     if not rooms:
         await _send(vk, event["peer_id"],
-                    f"Кабинет «{query}» не нашла. Проверь номер на сайте.")
+                    f"Кабинет «{query}» не найден. Проверь номер на сайте.")
         return
     lines = []
     for room in rooms[:MAX_MATCHES]:

@@ -67,4 +67,4 @@ async def test_found_by_name(db, school):
 async def test_not_found(db, school):
     vk = FakeVK()
     await navigator_bot.handle_where(_event("где 999"), vk)
-    assert "не нашла" in vk.messages[0].lower()
+    assert "не найден" in vk.messages[0].lower()
