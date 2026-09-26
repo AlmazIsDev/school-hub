@@ -26,6 +26,34 @@ CLASS_ID = "6ab20da1be46f2558fafc765"
 TEACHER_ID = "6ab20da6be46f2558fafc766"
 
 NOW = datetime.now(timezone.utc)
+DEMO_PASSWORD = "demo1234"
+
+
+async def accounts(db):
+    """Школа, класс, учитель и 10 учеников - носители всех id из этого скрипта.
+
+    Учитель: логин teacher, ученики u01..u10, пароль у всех demo1234.
+    """
+    from app.core.auth import hash_password
+
+    pw = hash_password(DEMO_PASSWORD)
+    await db.schools.replace_one({"_id": ObjectId(SCHOOL_ID)},
+                                 {"name": "Демо-школа", "code": "school1",
+                                  "created_at": NOW, "_demo": True}, upsert=True)
+    await db.school_classes.replace_one({"_id": ObjectId(CLASS_ID)},
+                                        {"school_id": SCHOOL_ID, "grade": 9,
+                                         "letter": "А", "_demo": True}, upsert=True)
+    users = [{"_id": ObjectId(TEACHER_ID), "school_id": SCHOOL_ID, "login": "teacher",
+              "password_hash": pw, "full_name": "Павел Сергеевич Демо",
+              "role": "teacher", "password_temp": False, "created_at": NOW, "_demo": True}]
+    for i in range(1, 11):
+        users.append({"_id": ObjectId(f"6abd000000000000000000{i:02d}"),
+                      "school_id": SCHOOL_ID, "login": f"u{i:02d}", "password_hash": pw,
+                      "full_name": f"Ученик Демо {i:02d}", "role": "student",
+                      "class_id": CLASS_ID, "password_temp": False,
+                      "created_at": NOW, "_demo": True})
+    for u in users:
+        await db.users.replace_one({"_id": u["_id"]}, u, upsert=True)
 
 
 async def pulse(db):
@@ -152,7 +180,7 @@ async def media(db):
 async def main():
     client = AsyncIOMotorClient(settings.mongo_url, tz_aware=True)
     db = client.get_default_database()
-    for step in (pulse, duty, builder, media):
+    for step in (accounts, pulse, duty, builder, media):
         await step(db)
         print(f"ok: {step.__name__}")
 
