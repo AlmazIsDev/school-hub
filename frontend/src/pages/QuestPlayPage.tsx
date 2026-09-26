@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, Group, Stack, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Card, Center, Loader, Group, Stack, Text, Title } from "@mantine/core";
 import { apiFetch } from "../api";
 
 type QuestListItem = { id: string; title: string };
@@ -24,11 +24,15 @@ export default function QuestPlayPage() {
   const [questId, setQuestId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    apiFetch<QuestListItem[]>("/builder/quests/published").then(setQuests).catch(
-      (err) => setError(err instanceof Error ? err.message : "Не удалось загрузить квесты"),
-    );
+    apiFetch<QuestListItem[]>("/builder/quests/published")
+      .then((qs) => { setQuests(qs); setLoaded(true); })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Не удалось загрузить квесты");
+        setLoaded(true);
+      });
   }, []);
 
   async function run(fn: () => Promise<PlayState>) {
@@ -61,10 +65,11 @@ export default function QuestPlayPage() {
   return (
     <Stack gap="md">
       <Title order={1} size="h2">Квесты</Title>
-      {error && <div role="alert">{error}</div>}
+      {error && <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
 
       {state === null && (
         <Stack gap="sm" maw={560}>
+          {!loaded && <Center><Loader /></Center>}
           {quests.length === 0 && <Text c="dimmed">Доступных квестов пока нет.</Text>}
           {quests.map((q) => (
             <Card key={q.id} withBorder padding="sm">

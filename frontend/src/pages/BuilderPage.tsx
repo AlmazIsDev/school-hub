@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Badge, Button, Card, Group, NativeSelect, NumberInput, Select, Stack,
+  Alert, Badge, Button, Card, Center, Group, Loader, NativeSelect, NumberInput, Progress, Select, Stack,
   Table, Text, TextInput, Title,
 } from "@mantine/core";
 import { apiFetch } from "../api";
@@ -100,6 +100,7 @@ export default function BuilderPage() {
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   // view: список | редактор (null = новый) | аналитика
   const [editing, setEditing] = useState<Quest | null | undefined>(undefined);
@@ -115,8 +116,10 @@ export default function BuilderPage() {
     setError(null);
     try {
       setQuests(await apiFetch<Quest[]>("/builder/quests"));
+      setLoaded(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить квесты");
+      setLoaded(true);
     }
   }
 
@@ -337,14 +340,22 @@ export default function BuilderPage() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {stats.funnel.map((f) => (
-                  <Table.Tr key={f.block_id}>
-                    <Table.Td>{f.block_id}</Table.Td>
-                    <Table.Td>{TYPE_LABEL[f.type]}</Table.Td>
-                    <Table.Td>{f.reached}</Table.Td>
-                    <Table.Td>{started > 0 ? Math.round((f.reached / started) * 100) : 0}%</Table.Td>
-                  </Table.Tr>
-                ))}
+                {stats.funnel.map((f) => {
+                  const pct = started > 0 ? Math.round((f.reached / started) * 100) : 0;
+                  return (
+                    <Table.Tr key={f.block_id}>
+                      <Table.Td>{f.block_id}</Table.Td>
+                      <Table.Td>{TYPE_LABEL[f.type]}</Table.Td>
+                      <Table.Td>{f.reached}</Table.Td>
+                      <Table.Td>
+                        <Group gap="sm" wrap="nowrap">
+                          <Progress flex={1} value={pct} size="sm" />
+                          <Text size="sm" w={48} ta="right">{pct}%</Text>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                })}
               </Table.Tbody>
             </Table>
           </>
@@ -357,7 +368,7 @@ export default function BuilderPage() {
     return (
       <Stack gap="md">
         <Title order={1} size="h2">Квесты</Title>
-        {error && <div role="alert">{error}</div>}
+        {error && <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
         {renderEditor()}
       </Stack>
     );
@@ -371,7 +382,10 @@ export default function BuilderPage() {
         <Title order={1} size="h2">Квесты</Title>
         <Button onClick={() => openEditor(null)}>Новый квест</Button>
       </Group>
-      {error && <div role="alert">{error}</div>}
+      {error && <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>{error}</Alert>}
+      {!loaded ? (
+        <Center><Loader /></Center>
+      ) : (
       <Table withTableBorder verticalSpacing="xs">
         <Table.Thead>
           <Table.Tr>
@@ -402,6 +416,7 @@ export default function BuilderPage() {
           )}
         </Table.Tbody>
       </Table>
+      )}
     </Stack>
   );
 }

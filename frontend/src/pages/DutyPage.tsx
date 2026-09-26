@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Button, Card, Group, Modal, NativeSelect, Select, Stack, Table, Tabs, Text, TextInput, Title,
+  Alert, Badge, Button, Card, Center, Group, Loader, Modal, NativeSelect, Select, Stack, Table, Tabs, Text, TextInput, Title,
 } from "@mantine/core";
 import { apiFetch } from "../api";
 import { useAuth } from "../auth";
@@ -13,6 +13,11 @@ type AppUser = { id: string; full_name: string; role: string };
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const SLOTS = Array.from({ length: 8 }, (_, i) => i + 1);
+
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 export default function DutyPage() {
   const { user } = useAuth();
@@ -37,6 +42,7 @@ function TeacherView() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [zoneName, setZoneName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const { error, setError, clear } = useApiError();
 
   async function refresh() {
@@ -50,8 +56,10 @@ function TeacherView() {
       setZones(z);
       setSchedules(s);
       setUsers(u.filter((x) => x.role === "student"));
+      setLoaded(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить данные");
+      setLoaded(true);
     }
   }
 
@@ -87,7 +95,12 @@ function TeacherView() {
 
   return (
     <>
-      {error && <div role="alert">{error}</div>}
+      {error && (
+        <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>{error}</Alert>
+      )}
+      {!loaded ? (
+        <Center><Loader /></Center>
+      ) : (
       <Tabs defaultValue="zones">
         <Tabs.List>
           <Tabs.Tab value="zones">Зоны</Tabs.Tab>
@@ -115,7 +128,10 @@ function TeacherView() {
                   <Table.Td>{z.name}</Table.Td>
                   <Table.Td>
                     <Button size="xs" variant="subtle" color="red" loading={busy}
-                      onClick={() => act(() => apiFetch(`/duty/zones/${z.id}`, { method: "DELETE" }), "Не удалось удалить зону")}>
+                      onClick={() => {
+                        if (!window.confirm(`Удалить зону «${z.name}»? Графики по ней станут недействительными.`)) return;
+                        act(() => apiFetch(`/duty/zones/${z.id}`, { method: "DELETE" }), "Не удалось удалить зону");
+                      }}>
                       Удалить
                     </Button>
                   </Table.Td>
@@ -146,7 +162,10 @@ function TeacherView() {
                   <Table.Td>{s.week_pattern.length}</Table.Td>
                   <Table.Td>
                     <Button size="xs" variant="subtle" color="red" loading={busy}
-                      onClick={() => act(() => apiFetch(`/duty/schedules/${s.id}`, { method: "DELETE" }), "Не удалось удалить график")}>
+                      onClick={() => {
+                        if (!window.confirm("Удалить график? Ученики потеряют слоты дежурства.")) return;
+                        act(() => apiFetch(`/duty/schedules/${s.id}`, { method: "DELETE" }), "Не удалось удалить график");
+                      }}>
                       Удалить
                     </Button>
                   </Table.Td>
@@ -159,6 +178,7 @@ function TeacherView() {
           </Table>
         </Tabs.Panel>
       </Tabs>
+      )}
     </>
   );
 }
@@ -174,12 +194,12 @@ function ScheduleEditor({ zones, students, busy, onSave }: {
   const [cell, setCell] = useState<string | null>(null);
   const [studentId, setStudentId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const byId = useMemo(() => new Map(students.map((s) => [s.value, s.label])), [students]);
 
   function openCell(key: string) {
-    if (!zoneId) { setMsg("Сначала выбери зону"); return; }
+    if (!zoneId) { setMsg({ text: "Сначала выбери зону", ok: false }); return; }
     setMsg(null);
     setCell(key);
     setStudentId(cells[key] ?? null);
@@ -196,21 +216,21 @@ function ScheduleEditor({ zones, students, busy, onSave }: {
   }
 
   async function save() {
-    if (!zoneId) { setMsg("Выбери зону"); return; }
+    if (!zoneId) { setMsg({ text: "Выбери зону", ok: false }); return; }
     const week_pattern = Object.entries(cells).map(([key, uid]) => {
       const [weekday, slot] = key.split("-").map(Number);
       return { weekday, slot, user_id: uid };
     });
-    if (week_pattern.length === 0) { setMsg("График пустой"); return; }
+    if (week_pattern.length === 0) { setMsg({ text: "График пустой", ok: false }); return; }
     setMsg(null);
     setSaving(true);
     try {
       if (await onSave({ zone_id: zoneId, week_pattern })) {
         setCells({});
-        setMsg("График сохранён");
+        setMsg({ text: "График сохранён", ok: true });
       }
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Не удалось сохранить график");
+      setMsg({ text: err instanceof Error ? err.message : "Не удалось сохранить график", ok: false });
     } finally {
       setSaving(false);
     }
@@ -231,7 +251,11 @@ function ScheduleEditor({ zones, students, busy, onSave }: {
           <Text size="sm" c="dimmed">Назначено слотов: {Object.keys(cells).length}</Text>
         )}
       </Group>
-      {msg && <div role="alert">{msg}</div>}
+      {msg && (
+        <Alert color={msg.ok ? "green" : "red"} role="alert" withCloseButton onClose={() => setMsg(null)}>
+          {msg.text}
+        </Alert>
+      )}
       <Table withTableBorder withColumnBorders verticalSpacing="xs" horizontalSpacing="xs">
         <Table.Thead>
           <Table.Tr>
@@ -250,8 +274,17 @@ function ScheduleEditor({ zones, students, busy, onSave }: {
                   <Table.Td
                     key={slot}
                     onClick={() => openCell(key)}
-                    style={{ cursor: "pointer", minWidth: 90 }}
-                    title="Клик - назначить ученика"
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCell(key); } }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`День ${wd}, слот ${slot}: ${uid ? `дежурит ${byId.get(uid) ?? uid}` : "свободно, клик - назначить ученика"}`}
+                    style={(theme) => ({
+                      cursor: "pointer",
+                      minWidth: 90,
+                      background: uid ? theme.colors.blue[0] : undefined,
+                      "&:hover": { outline: "2px solid " + theme.colors.blue[4] },
+                      "&:focus-visible": { outline: "2px solid " + theme.colors.blue[6] },
+                    })}
                   >
                     {uid ? byId.get(uid) ?? uid : <Text c="dimmed" size="sm">-</Text>}
                   </Table.Td>
@@ -287,6 +320,7 @@ function StudentView() {
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   async function loadCompletions() {
     setCompletions(await apiFetch<Completion[]>("/duty/completions"));
@@ -306,18 +340,15 @@ function StudentView() {
         setZones(z);
         setSchedules(s);
         setCompletions(c);
+        setLoaded(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Не удалось загрузить данные");
+        setLoaded(true);
       }
     })();
   }, []);
 
   /** Отметить выполнение: сегодня, этот слот. Отметку за прошлое ставит бот. */
-  const todayISO = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  };
-
   async function mark(c: Schedule, sl: Slot) {
     if (busy) return;
     setError(null);
@@ -335,11 +366,19 @@ function StudentView() {
     }
   }
 
-  if (error && !myId) return <div role="alert">{error}</div>;
+  if (error && !myId) return <Alert color="red" role="alert">{error}</Alert>;
+
+  const today = todayISO();
 
   return (
     <>
-      {error && <div role="alert">{error}</div>}
+      {error && (
+        <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>{error}</Alert>
+      )}
+      {!loaded ? (
+        <Center><Loader /></Center>
+      ) : (
+      <>
       <Card withBorder>
         <Title order={2} size="h4" mb="md">Мои дежурства на неделю</Title>
         <Table withTableBorder verticalSpacing="xs">
@@ -355,10 +394,13 @@ function StudentView() {
                   <Table.Td>{WEEKDAYS[sl.weekday - 1]}</Table.Td>
                   <Table.Td>{sl.slot}</Table.Td>
                   <Table.Td>
-                    <Button size="xs" variant="light" disabled={busy}
-                      onClick={() => mark(s, sl)}>
-                      Отметить
-                    </Button>
+                    {completions.some((c) => c.schedule_id === s.id && c.weekday === sl.weekday && c.slot === sl.slot && c.date.slice(0, 10) === today) ? (
+                      <Badge color="green" variant="light">Отмечено</Badge>
+                    ) : (
+                      <Button size="xs" variant="light" disabled={busy} onClick={() => mark(s, sl)}>
+                        Отметить
+                      </Button>
+                    )}
                   </Table.Td>
                 </Table.Tr>
               )),
@@ -391,6 +433,8 @@ function StudentView() {
           </Table.Tbody>
         </Table>
       </Card>
+      </>
+      )}
     </>
   );
 }
