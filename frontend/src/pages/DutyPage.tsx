@@ -146,9 +146,12 @@ function TeacherView() {
         </Tabs.Panel>
 
         <Tabs.Panel value="editor" pt="md">
-          <ScheduleEditor zones={zones} students={students} busy={busy} onSave={(body) =>
-            act(() => apiFetch("/duty/schedules", { method: "POST", body: JSON.stringify(body) }), "Не удалось сохранить график")
-          } />
+          <ScheduleEditor zones={zones} students={students} schedules={schedules} busy={busy} onSave={async (body) => {
+            // бэкенд не имеет PUT: изменение графика = delete + create
+            const existing = schedules.find((s) => s.zone_id === body.zone_id);
+            if (existing && !await act(() => apiFetch(`/duty/schedules/${existing.id}`, { method: "DELETE" }), "Не удалось удалить старый график")) return false;
+            return act(() => apiFetch("/duty/schedules", { method: "POST", body: JSON.stringify(body) }), "Не удалось сохранить график");
+          }} />
         </Tabs.Panel>
 
         <Tabs.Panel value="list" pt="md">
@@ -215,9 +218,10 @@ function TeacherView() {
   );
 }
 
-function ScheduleEditor({ zones, students, busy, onSave }: {
+function ScheduleEditor({ zones, students, schedules, busy, onSave }: {
   zones: Zone[];
   students: { value: string; label: string }[];
+  schedules: Schedule[];
   busy: boolean;
   onSave: (body: { zone_id: string; week_pattern: Slot[] }) => Promise<boolean>;
 }) {
@@ -258,7 +262,6 @@ function ScheduleEditor({ zones, students, busy, onSave }: {
     setSaving(true);
     try {
       if (await onSave({ zone_id: zoneId, week_pattern })) {
-        setCells({});
         setMsg({ text: "График сохранён", ok: true });
       }
     } catch (err) {
@@ -275,7 +278,15 @@ function ScheduleEditor({ zones, students, busy, onSave }: {
       <Group align="flex-end" gap="sm" mb="md">
         <NativeSelect
           label="Зона" data={zones.map((z) => ({ value: z.id, label: z.name }))}
-          value={zoneId ?? ""} onChange={(e) => { setZoneId(e.currentTarget.value); setCells({}); }}
+          value={zoneId ?? ""} onChange={(e) => {
+            const zid = e.currentTarget.value;
+            setZoneId(zid);
+            // загружаем текущий график зоны в сетку - его видно сразу
+            const existing = schedules.find((s) => s.zone_id === zid);
+            const loaded: Record<string, string> = {};
+            existing?.week_pattern.forEach((sl) => { loaded[`${sl.weekday}-${sl.slot}`] = sl.user_id; });
+            setCells(loaded);
+          }}
           maw={280} required
         />
         <Button loading={busy || saving} onClick={save}>Сохранить график</Button>
@@ -288,6 +299,7 @@ function ScheduleEditor({ zones, students, busy, onSave }: {
           {msg.text}
         </Alert>
       )}
+      <Text size="sm" c="dimmed" mb="sm">Сетка показывает текущий график выбранной зоны. Клик по ячейке - назначить или убрать ученика, затем «Сохранить график».</Text>
       <Table withTableBorder withColumnBorders verticalSpacing="xs" horizontalSpacing="xs">
         <Table.Thead>
           <Table.Tr>
