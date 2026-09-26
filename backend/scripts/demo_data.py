@@ -15,6 +15,7 @@ os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017/schoolhub")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("JWT_SECRET", "demo-only-not-a-secret")
 
+from bson import ObjectId  # noqa: E402
 from motor.motor_asyncio import AsyncIOMotorClient  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
@@ -54,7 +55,7 @@ async def pulse(db):
 
 async def duty(db):
     """Зона дежурства + расписание на неделю + отметки за прошедшие дни."""
-    zone_id = "6abde0000000000000000001"
+    zone_id = ObjectId("6abde0000000000000000001")
     await db.duty_zones.delete_many({"_demo": True})
     await db.duty_schedules.delete_many({"_demo": True})
     await db.duty_completions.delete_many({"_demo": True})
@@ -64,11 +65,11 @@ async def duty(db):
     week = [{"weekday": wd, "slot": slot, "user_id": uid, "_demo": True}
             for wd in range(1, 6)
             for slot, uid in [(2, user_ids[wd * 2 - 2]), (5, user_ids[wd * 2 - 1])]]
-    await db.duty_schedules.insert_one({"school_id": SCHOOL_ID, "teacher_id": TEACHER_ID,
-                                        "zone_id": zone_id, "week_pattern": week,
-                                        "created_at": NOW, "_demo": True})
+    res = await db.duty_schedules.insert_one({"school_id": SCHOOL_ID, "teacher_id": TEACHER_ID,
+                                              "zone_id": str(zone_id), "week_pattern": week,
+                                              "created_at": NOW, "_demo": True})
     monday = NOW - timedelta(days=NOW.weekday())
-    completions = [{"school_id": SCHOOL_ID, "schedule_id": None, "weekday": wd, "slot": slot,
+    completions = [{"school_id": SCHOOL_ID, "schedule_id": str(res.inserted_id), "weekday": wd, "slot": slot,
                     "user_id": uid, "date": (monday + timedelta(days=wd - 1))
                     .replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc),
                     "marked_at": NOW, "_demo": True}
@@ -94,7 +95,7 @@ QUEST_STRUCTURE = {
 
 async def builder(db):
     """Квест по физике + прогоны учеников."""
-    quest_id = "6abde0000000000000000002"
+    quest_id = ObjectId("6abde0000000000000000002")
     await db.builder_quests.delete_many({"_demo": True})
     await db.builder_runs.delete_many({"_demo": True})
     await db.builder_quests.insert_one({
@@ -105,7 +106,7 @@ async def builder(db):
     runs = []
     for i in range(12):
         good = i < 8
-        runs.append({"school_id": SCHOOL_ID, "quest_id": quest_id,
+        runs.append({"school_id": SCHOOL_ID, "quest_id": str(quest_id),
                      "user_id": f"6abd000000000000000000{i:02d}",
                      "finished": True, "score": 2 if good else 1,
                      "trace": [{"block_id": "q1", "value": "Уменьшится в 4 раза" if good else "Уменьшится в 2 раза"},
