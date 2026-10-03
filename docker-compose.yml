@@ -4,8 +4,8 @@ services:
     ports: ["${MONGO_PORT:-127.0.0.1:27017}:27017"]  # наружу не торчим
     volumes: [mongodata:/data/db]
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 3s
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/27017"]
+      interval: 10s
       retries: 15
   redis:
     image: redis:7-alpine
