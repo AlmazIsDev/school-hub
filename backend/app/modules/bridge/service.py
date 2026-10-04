@@ -33,31 +33,47 @@ RU_MAT_RE = re.compile(
     re.IGNORECASE,
 )
 
-EN_MAT_RE = re.compile(
-    r"\b(?:"
-    r"m+o+t+h+e?r+f+u+c?k+(?:ing|ers?)?"
-    r"|f+u+c?k+(?:ing|in|ed|ers?|s|off)?"
-    r"|s+h+i+t+(?:s|ty|head|hole)?"
-    r"|b+i+t+c+h+(?:es)?"
-    r"|c+u+n+t+s?"
-    r"|d+i+c+k+(?:s|head)?"
-    r"|c+o+c+k+(?:s|sucker)?"
-    r"|a+s+s+h+o+l+e+s?"
-    r"|b+a+s+t+e?r+d+s?"
-    r"|w+h+o+r+e+s?"
-    r"|s+l+u+t+s?"
-    r"|n+i+g+g+(?:e?r|a)s?"
-    r"|c+u+m+"
-    r"|j+i+z+z"
-    r"|d+i+l+d+o+s?"
-    r"|p+r+i+c+k+s?"
-    r"|t+w+a+t+s?"
-    r"|b+o+l+l+o+c+k+s"
-    r"|w+a+n+k+(?:ers?)?"
-    r"|g+a+n+g+b+a+n+g"
-    r")\b",
-    re.IGNORECASE,
-)
+# знаменитый bad-words список со StackOverflow (q/23505926), 406 слов с leet-вариантами.
+# Вырезал gay/lesbian/hell/damn/sex/Phuc - нормальные слова и имена для школьного чата.
+EN_BADWORDS = ("ahole|anus|ash0le|asles|asholes|ass|Ass Monkey|Assface|assh0le|assh0lez|asshol"
+                  "e|assholes|assholz|asswipe|azzhole|bassterds|bastard|bastards|bastardz|basterd"
+                  "s|basterdz|Biatch|bitch|bitches|Blow Job|boffing|butthole|buttwipe|c0ck|c0cks|"
+                  "c0k|Carpet Muncher|cawk|cawks|Clit|cnts|cntz|cock|cockhead|cock-head|cocks|Coc"
+                  "kSucker|cock-sucker|crap|cum|cunt|cunts|cuntz|dick|dild0|dild0s|dildo|dildos|d"
+                  "illd0|dilld0s|dominatricks|dominatrics|dominatrix|dyke|enema|f u c k|f u c k e"
+                  " r|fag|fag1t|faget|fagg1t|faggit|faggot|fagit|fags|fagz|faig|fart|flipping the"
+                  " bird|fuck|fucker|fuckin|fucking|fucks|Fudge Packer|fuk|Fukah|Fuken|fuker|Fuki"
+                  "n|Fukk|Fukkah|Fukken|Fukker|Fukkin|g00k|h00r|h0ar|h0re|hoar|hoor|hoore|jackoff"
+                  "|jap|japs|jerk-off|jisim|jiss|jizm|jizz|knob|knobs|knobz|kunt|kunts|kuntz|Lezz"
+                  "ian|Lipshits|Lipshitz|masochist|masokist|massterbait|masstrbait|masstrbate|mas"
+                  "terbaiter|masterbate|masterbates|Motha Fucker|Motha Fuker|Motha Fukkah|Motha F"
+                  "ukker|Mother Fucker|Mother Fukah|Mother Fuker|Mother Fukkah|Mother Fukker|moth"
+                  "er-fucker|Mutha Fucker|Mutha Fukah|Mutha Fuker|Mutha Fukkah|Mutha Fukker|n1gr|"
+                  "nastt|nigger|nigur|niiger|niigr|orafis|orgasim|orgasm|orgasum|oriface|orifice|"
+                  "orifiss|packi|packie|packy|paki|pakie|paky|pecker|peeenus|peeenusss|peenus|pei"
+                  "nus|pen1s|penas|penis|penis-breath|penus|penuus|Phuck|Phuk|Phuker|Phukker|pola"
+                  "c|polack|polak|Poonani|pr1c|pr1ck|pr1k|pusse|pussee|pussy|puuke|puuker|queer|q"
+                  "ueers|queerz|qweers|qweerz|qweir|recktum|rectum|retard|sadist|scank|schlong|sc"
+                  "rewing|semen|Sh!t|sh1t|sh1ter|sh1ts|sh1tter|sh1tz|shit|shits|shitter|Shitty|Sh"
+                  "ity|shitz|Shyt|Shyte|Shytty|Shyty|skanck|skank|skankee|skankey|skanks|Skanky|s"
+                  "lut|sluts|Slutty|slutz|son-of-a-bitch|tit|turd|va1jina|vag1na|vagiina|vagina|v"
+                  "aj1na|vajina|vullva|vulva|w0p|wh00r|wh0re|whore|xrated|xxx|b!+ch|blowjob|clit|"
+                  "arschloch|b!tch|b17ch|b1tch|bi+ch|boiolas|buceta|chink|cipa|clits|dirsa|ejakul"
+                  "ate|fatass|fcuk|fux0r|hoer|hore|jism|kawk|l3itch|l3i+ch|masturbate|masterbat|m"
+                  "asterbat3|motherfucker|s.o.b.|mofo|nazi|nigga|nutsack|phuck|pimpis|scrotum|sh!"
+                  "t|shemale|shi+|sh!+|smut|teets|tits|boobs|b00bs|teez|testical|testicle|titt|w0"
+                  "0se|wank|whoar|@$$|amcik|andskota|arse|assrammer|ayir|bi7ch|bollock|breasts|bu"
+                  "tt-pirate|cabron|cazzo|chraa|chuj|Cock|daygo|dego|dike|dupa|dziwka|ejackulate|"
+                  "Ekrem|Ekto|enculer|faen|fanculo|fanny|feces|feg|Felcher|ficken|fitt|Flikker|fo"
+                  "reskin|Fotze|Fu|futkretzn|gook|guiena|h0r|h4x0r|helvete|honkey|Huevon|hui|inju"
+                  "n|kanker|kike|klootzak|kraut|knulle|kuk|kuksuger|Kurac|kurwa|kusi|kyrpa|lesbo|"
+                  "mamhoon|masturbat|merd|mibun|monkleigh|mouliewop|muie|mulkku|muschi|nazis|nepe"
+                  "saurio|orospu|paska|perse|picka|pierdol|pillu|pimmel|piss|pizda|poontsee|poop|"
+                  "porn|p0rn|pr0n|preteen|pula|pule|puta|puto|qahbeh|queef|rautenberg|schaffer|sc"
+                  "heiss|schlampe|schmuck|screw|sharmuta|sharmute|shipal|shiz|skribz|skurwysyn|sp"
+                  "hencter|spic|spierdalaj|splooge|suka|b00b|twat|vittu|wetback|wichser|wop|yed").split("|")
+EN_MAT_RE = re.compile(r"\b(?:" + "|".join(map(re.escape, EN_BADWORDS)) + r")\b",
+                       re.IGNORECASE)
 
 # латинские омоглифы -> кириллица (n->п из референса убрал: даёт «no»->«по» и ложные склейки)
 _RU_OMO = str.maketrans({"a": "а", "e": "е", "o": "о", "p": "р", "c": "с", "x": "х", "y": "у",
@@ -69,9 +85,10 @@ _EN_OMO = str.maketrans({"а": "a", "е": "e", "о": "o", "р": "p", "с": "c", 
                          "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "@": "a", "$": "s"})
 
 
-def _normalize(text: str, omoglyphs: dict) -> str:
+def _normalize(text: str, omoglyphs: dict, strip_seps: bool = True) -> str:
     s = unicodedata.normalize("NFKC", text).lower().translate(omoglyphs).replace("_", "")
-    s = re.sub(r"(?<=\w)[^\w\s]+(?=\w)", "", s)   # х.у.й -> хуй
+    if strip_seps:
+        s = re.sub(r"(?<=\w)[^\w\s]+(?=\w)", "", s)   # х.у.й -> хуй
     s = re.sub(r"(?<=\b\w)\s+(?=\w\b)", "", s)    # п и з д е ц -> пиздец, но «иди в школу» не трогаем
     s = re.sub(r"([^\W\d_])\1{2,}", r"\1\1", s)   # хуууй -> хууй
     return s
@@ -88,7 +105,8 @@ async def text_hit(text: str, school_id: str | None = None) -> str | None:
     m = RU_MAT_RE.search(_normalize(text, _RU_OMO))
     if m:
         return m.group(0)
-    m = EN_MAT_RE.search(_normalize(text, _EN_OMO))
+    # разделители не трогаем: «!» и «+» в списке - легитимный leet (b!tch, bi+ch)
+    m = EN_MAT_RE.search(_normalize(text, _EN_OMO, strip_seps=False))
     if m:
         return m.group(0)
     return None

@@ -246,6 +246,8 @@ async def test_mat_regex(db, fake_redis, vk):
     assert await bridge_service.text_hit("xyй тебе")
     assert await bridge_service.text_hit("f u c k off")
     assert await bridge_service.text_hit("sh1t happens")
+    assert await bridge_service.text_hit("b!tch")
+    assert await bridge_service.text_hit("proud of you") is None
     assert await bridge_service.text_hit("поезд в 5 часов") is None
     assert await bridge_service.text_hit("хуже не будет") is None
     assert await bridge_service.text_hit("иди в школу") is None
