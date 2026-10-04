@@ -32,7 +32,7 @@ DEMO_PASSWORD = "demo1234"
 async def accounts(db):
     """Школа, класс, учитель и 10 учеников - носители всех id из этого скрипта.
 
-    Учитель: логин teacher, ученики u01..u10, пароль у всех demo1234.
+    Учитель: логин teacher, ученики u01..u10, пароль у всех demo1234. Плюс админ школы.
     """
     from app.core.auth import hash_password
 
@@ -43,7 +43,11 @@ async def accounts(db):
     await db.school_classes.replace_one({"_id": ObjectId(CLASS_ID)},
                                         {"school_id": SCHOOL_ID, "grade": 9,
                                          "letter": "А", "_demo": True}, upsert=True)
-    users = [{"_id": ObjectId(TEACHER_ID), "school_id": SCHOOL_ID, "login": "teacher",
+    users = [{"_id": ObjectId("6abd000000000000000000ff"),
+              "school_id": SCHOOL_ID, "login": "admin", "full_name": "Админ Демо",
+              "role": "admin", "password_hash": pw, "password_temp": False,
+              "created_at": NOW, "_demo": True},
+             {"_id": ObjectId(TEACHER_ID), "school_id": SCHOOL_ID, "login": "teacher",
               "password_hash": pw, "full_name": "Павел Сергеевич Демо",
               "role": "teacher", "password_temp": False, "created_at": NOW, "_demo": True}]
     for i in range(1, 11):

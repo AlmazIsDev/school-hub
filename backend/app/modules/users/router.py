@@ -15,8 +15,9 @@ router = APIRouter(prefix="/api")
 
 @router.post("/auth/login", response_model=schemas.TokensOut)
 async def login(body: schemas.LoginIn):
-    if not body.school_code.strip():
-        # без школы входит только платформенный админ
+    code = body.school_code.strip()
+    if not code or code == "admin":
+        # платформенный админ входит без школы или с кодом "admin"
         user_doc = await service.superadmin_by_login(body.login)
     else:
         school = await School.find_one(School.code == body.school_code.strip().lower())
