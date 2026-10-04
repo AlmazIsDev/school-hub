@@ -32,6 +32,10 @@ NOT_FOUND = ("Пока никого нет по теме «{topic}». Заявк
 NO_PAIR = "Активной пары нет. Напиши «нужна помощь» или «стать помощником»."
 STOP_HIT = ("Сообщение не доставлено: обнаружено запрещённое слово. "
             "Модераторы увидят репорт.")
+RATE_TEXTS = {
+    "seeker": "Пара закрыта. Оцените помощника от 1 до 5:",
+    "helper": "Пара закрыта. Оцените собеседника от 1 до 5:",
+}
 NOT_BOUND = "Напарник не привязал VK - сообщение сохранено, но не доставлено."
 
 
@@ -136,7 +140,7 @@ async def _create_pair(topic: str, request: HelpRequest, helper_id: str, vk) -> 
     await request.save()
     helper = await users_service.by_id(helper_id)
     seeker = await users_service.by_id(request.user_id)
-    hint = "\nПиши сюда обычными сообщениями - пересллю напарнику. Код чата: %s" % pair.chat_key
+    hint = "\nПиши сюда обычными сообщениями - перешлю напарнику. Код чата: %s" % pair.chat_key
     if helper and helper.vk_id:
         await _send(vk, helper.vk_id,
                     f"Новая пара по теме «{topic}»: {seeker.full_name if seeker else 'ученик'}.{hint}")
@@ -234,7 +238,7 @@ async def finish_pair(event, vk):
         if not member or member.vk_id is None:
             continue
         await _set_state(member.vk_id, {"flow": "rate", "pair_id": str(pair.id), "role": role})
-        await _send(vk, member.vk_id, "Пара закрыта. Оцените помощь от 1 до 5:", _kb_rate())
+        await _send(vk, member.vk_id, RATE_TEXTS[role], _kb_rate())
 
 
 async def _on_confirm(payload: dict, state: dict, event, vk):
@@ -266,10 +270,11 @@ async def _on_rate(payload: dict, state: dict, event, vk):
     pair = await TutorPair.get(state["pair_id"])
     if not pair:
         return
+    # helper_score - рейтинг помощника (ставит seeker), seeker_score - рейтинг seeker'а
     if state["role"] == "helper":
-        pair.helper_score = score
-    else:
         pair.seeker_score = score
+    else:
+        pair.helper_score = score
     await pair.save()
     await _send(vk, peer, "Спасибо за оценку!")
 

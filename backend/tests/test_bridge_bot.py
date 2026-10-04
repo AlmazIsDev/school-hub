@@ -257,8 +257,8 @@ async def test_finish_pair_and_rates(db, fake_redis, vk):
     for peer in (100, 200):
         st = json.loads(fake_redis.data[f"bridgestate:{peer}"])
         assert st["flow"] == "rate" and st["pair_id"] == str(pair.id)
-    assert any("Оцените помощь" in c["message"] for c in _calls_to(vk, 100))
-    assert any("Оцените помощь" in c["message"] for c in _calls_to(vk, 200))
+    assert any("Оцените собеседника" in c["message"] for c in _calls_to(vk, 100))
+    assert any("Оцените помощника" in c["message"] for c in _calls_to(vk, 200))
 
     kb = json.loads(_calls_to(vk, 100)[0]["keyboard"])
     payloads = {b["action"]["payload"] for row in kb["buttons"] for b in row}
@@ -270,7 +270,7 @@ async def test_finish_pair_and_rates(db, fake_redis, vk):
                                          "payload": target, "text": str(score)}, vk)
         assert "bridgestate:%s" % role_vk not in fake_redis.data
     fresh = await TutorPair.get(pair.id)
-    assert fresh.helper_score == 5 and fresh.seeker_score == 4
+    assert fresh.helper_score == 4 and fresh.seeker_score == 5
 
 
 async def test_finish_without_pair(db, fake_redis, vk):
