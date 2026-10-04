@@ -8,6 +8,7 @@ from beanie import init_beanie
 
 from app.core import redis as core_redis
 from app.bot import bridge_bot
+from app.modules.bridge import service as bridge_service
 from app.bot.dispatcher import Dispatcher
 from app.bot.handlers import register
 from app.modules.users.models import School, SchoolClass, User
@@ -237,6 +238,17 @@ async def test_forward_clean_and_stopword(db, fake_redis, vk):
     report = (await Report.find_all().to_list())[0]
     assert report.reported_user_id == str(helper.id)
     assert report.status == "open" and "авто" in report.reason and report.message_id
+
+
+async def test_mat_regex(db, fake_redis, vk):
+    assert await bridge_service.text_hit("ты х_у_й")
+    assert await bridge_service.text_hit("п и з д е ц")
+    assert await bridge_service.text_hit("xyй тебе")
+    assert await bridge_service.text_hit("f u c k off")
+    assert await bridge_service.text_hit("sh1t happens")
+    assert await bridge_service.text_hit("поезд в 5 часов") is None
+    assert await bridge_service.text_hit("хуже не будет") is None
+    assert await bridge_service.text_hit("иди в школу") is None
 
 
 async def test_finish_pair_and_rates(db, fake_redis, vk):
